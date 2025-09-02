@@ -1,0 +1,30 @@
+services:
+  feature-svc:
+    build: { context: .., dockerfile: docker/feature.Dockerfile }
+    ports: ["8001:8001"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  model-svc:
+    build: { context: .., dockerfile: docker/model.Dockerfile }
+    ports: ["8002:8002"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  gateway:
+    build: { context: .., dockerfile: docker/gateway.Dockerfile }
+    ports: ["8080:8080"]
+    depends_on:
+      feature-svc: { condition: service_healthy }
+      model-svc: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10

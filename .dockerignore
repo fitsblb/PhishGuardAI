@@ -1,0 +1,17 @@
+# VCS
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+
+# Envs & local tools
+.venv/
+venv/
+.env
+
+# Data & experiments (we'll mount or volume these later)
+data/
+mlruns/
+great_expectations/uncommitted/

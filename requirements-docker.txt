@@ -1,0 +1,37 @@
+# --- Core Web Framework & Utilities ---
+fastapi                # High-performance web framework for building APIs
+uvicorn[standard]      # ASGI server for FastAPI (standard includes useful extras)
+pydantic>=2            # Data validation and settings management using Python type annotations
+python-multipart       # Multipart form data parser for FastAPI file uploads
+rich                   # Rich text and beautiful formatting in the terminal
+
+# --- Machine Learning ---
+scikit-learn           # Core machine learning algorithms and utilities
+xgboost                # Gradient boosting library for classification and regression
+numpy                  # Fundamental package for numerical computations
+pandas                 # Data analysis and manipulation tool
+scipy                  # Scientific computing library
+imbalanced-learn       # Techniques for imbalanced datasets
+joblib                 # Efficient serialization and parallelization for ML models
+
+# --- Explainability ---
+shap                   # Model explainability and interpretation
+
+# --- NLP & Embeddings (CPU-friendly local) ---
+sentence-transformers  # Sentence embeddings for NLP tasks
+transformers           # State-of-the-art NLP models
+torch --extra-index-url https://download.pytorch.org/whl/cpu  # PyTorch (CPU-only)
+
+# --- Data Validation & Tracking ---
+great-expectations     # Data validation, documentation, and profiling
+# mlflow                 # MLflow without Docker support for container compatibility
+
+# --- Testing & Code Quality ---
+pytest                 # Python testing framework
+pytest-cov             # Coverage reporting for pytest
+pre-commit             # Framework for managing and maintaining multi-language pre-commit hooks
+black                  # Python code formatter
+isort                  # Sorts imports automatically
+flake8                 # Python style guide enforcement
+mypy                   # Static type checker for Python
+bandit                 # Security linter for Python code
