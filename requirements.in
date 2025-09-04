@@ -35,3 +35,9 @@ isort                  # Sorts imports automatically
 flake8                 # Python style guide enforcement
 mypy                   # Static type checker for Python
 bandit                 # Security linter for Python code
+
+
+
+#----- DataBase------------
+pymongo
+pymongo[srv]==3.6
