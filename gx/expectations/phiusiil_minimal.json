@@ -1,0 +1,728 @@
+{
+  "expectations": [
+    {
+      "id": "4e50d980-dd4d-4040-a3d8-001389d3985b",
+      "kwargs": {
+        "column": "label"
+      },
+      "meta": {},
+      "type": "expect_column_values_to_not_be_null"
+    },
+    {
+      "id": "0d4f8329-5e70-4c9f-8a57-86e2d8ee01ea",
+      "kwargs": {
+        "column": "label",
+        "value_set": [
+          0,
+          1
+        ]
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "5c923038-c29c-407b-be76-63ccff9e8ab4",
+      "kwargs": {
+        "column": "URL"
+      },
+      "meta": {},
+      "type": "expect_column_values_to_not_be_null"
+    },
+    {
+      "id": "553f325e-f5e6-4385-b9e2-8e6ad3e214e6",
+      "kwargs": {
+        "column": "URL"
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_unique"
+    },
+    {
+      "id": "8301cda7-adb5-4753-8054-c5d47a87bedd",
+      "kwargs": {
+        "column": "CharContinuationRate",
+        "max_value": 1.0,
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "18a7125b-3540-429a-8bc4-36e22e228ae6",
+      "kwargs": {
+        "column": "URLTitleMatchScore",
+        "max_value": 1.0,
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "d69077ed-9f8e-46f8-abee-372ba1c7ad0d",
+      "kwargs": {
+        "column": "URLCharProb",
+        "max_value": 1.0,
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "7b14f7e1-8953-4be3-bbd3-2decfd3c8193",
+      "kwargs": {
+        "column": "TLDLegitimateProb",
+        "max_value": 1.0,
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "1b13e08e-1b36-4c0d-b1ed-099f94a48484",
+      "kwargs": {
+        "column": "IsDomainIP",
+        "value_set": [
+          0,
+          1
+        ]
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "f21cc007-209b-4e41-a37d-87969ed964e9",
+      "kwargs": {
+        "column": "HasObfuscation",
+        "value_set": [
+          0,
+          1
+        ]
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "fcf07059-e746-42fe-b5ce-f552a3bd8621",
+      "kwargs": {
+        "column": "IsHTTPS",
+        "value_set": [
+          0,
+          1
+        ]
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "7338a377-28bd-4da7-ae37-53424475747e",
+      "kwargs": {
+        "column": "HasTitle",
+        "value_set": [
+          0,
+          1
+        ]
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "e2b04233-06fd-46cb-9e66-89d36368908f",
+      "kwargs": {
+        "column": "HasFavicon",
+        "value_set": [
+          0,
+          1
+        ]
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "fa4cc097-59af-4512-b0d8-f216e9236009",
+      "kwargs": {
+        "column": "Robots",
+        "value_set": [
+          0,
+          1
+        ]
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "f33c7003-965d-4e42-8481-f89fa062d84b",
+      "kwargs": {
+        "column": "IsResponsive",
+        "value_set": [
+          0,
+          1
+        ]
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "e8566efa-641c-493a-92ba-486612162c71",
+      "kwargs": {
+        "column": "NoOfURLRedirect",
+        "value_set": [
+          0,
+          1
+        ]
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "8595f82e-e3b1-483d-88c9-0f77e28d1b34",
+      "kwargs": {
+        "column": "NoOfSelfRedirect",
+        "value_set": [
+          0,
+          1
+        ]
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "1a1e4c55-a8c8-455d-93bf-e2642a290360",
+      "kwargs": {
+        "column": "HasDescription",
+        "value_set": [
+          0,
+          1
+        ]
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "ad964ee4-8aa3-40c5-b79b-eb4a2c979cd0",
+      "kwargs": {
+        "column": "HasExternalFormSubmit",
+        "value_set": [
+          0,
+          1
+        ]
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "d1fc7459-1fb7-449a-8546-77f33394f60a",
+      "kwargs": {
+        "column": "HasSocialNet",
+        "value_set": [
+          0,
+          1
+        ]
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "95612a46-ea04-47c0-ac44-b5335ead3d2b",
+      "kwargs": {
+        "column": "HasSubmitButton",
+        "value_set": [
+          0,
+          1
+        ]
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "e98a2dd4-6204-4dde-afb0-6c2aa1d01f52",
+      "kwargs": {
+        "column": "HasHiddenFields",
+        "value_set": [
+          0,
+          1
+        ]
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "980ee0c7-f237-4862-a461-4f46a287d81d",
+      "kwargs": {
+        "column": "HasPasswordField",
+        "value_set": [
+          0,
+          1
+        ]
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "aeffdd4a-de37-44be-8034-2042c7e030b1",
+      "kwargs": {
+        "column": "Bank",
+        "value_set": [
+          0,
+          1
+        ]
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "6586d81e-3fce-450d-b148-1a7f6a8834d2",
+      "kwargs": {
+        "column": "Pay",
+        "value_set": [
+          0,
+          1
+        ]
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "b474597c-e748-4f33-a474-8f3704ac9dc5",
+      "kwargs": {
+        "column": "Crypto",
+        "value_set": [
+          0,
+          1
+        ]
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "e6634cee-f420-4fb1-bd60-2ae8f3f8870a",
+      "kwargs": {
+        "column": "HasCopyrightInfo",
+        "value_set": [
+          0,
+          1
+        ]
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "62f7524e-9862-4234-ac3c-eb3ea9ce7865",
+      "kwargs": {
+        "column": "URLLength",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "e2273d43-4f3a-4192-bae3-dfc714d4e6d2",
+      "kwargs": {
+        "column": "DomainLength",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "ca86fe51-d269-45de-916f-84529576dcac",
+      "kwargs": {
+        "column": "IsDomainIP",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "54a959aa-4890-4765-b7c4-7764c3d46900",
+      "kwargs": {
+        "column": "URLSimilarityIndex",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "d0abfc64-cabd-4bea-87f5-a3f14af0c07b",
+      "kwargs": {
+        "column": "TLDLength",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "c78b832f-a79c-4e28-9531-88bf3d1dc0d4",
+      "kwargs": {
+        "column": "NoOfSubDomain",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "25189b4e-feae-46d9-b96d-8df1c33c6cf7",
+      "kwargs": {
+        "column": "HasObfuscation",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "1d04234a-b516-4b88-9254-6d76bdff31f0",
+      "kwargs": {
+        "column": "NoOfObfuscatedChar",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "4e1e5ff6-5097-4169-885d-3bd2433c76aa",
+      "kwargs": {
+        "column": "ObfuscationRatio",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "d11ec02f-e422-4e2e-ba85-c5c97274093d",
+      "kwargs": {
+        "column": "NoOfLettersInURL",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "70f334a3-e1f0-4e5e-9866-004e6f33f7d6",
+      "kwargs": {
+        "column": "LetterRatioInURL",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "9f9cb4ce-2c8e-45d6-8148-80b24f172d35",
+      "kwargs": {
+        "column": "NoOfDegitsInURL",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "4d414c14-aed6-46ec-a5a3-6b8513a870b1",
+      "kwargs": {
+        "column": "DegitRatioInURL",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "8a2eaa94-c7ff-446c-87b9-d805edefc6f9",
+      "kwargs": {
+        "column": "NoOfEqualsInURL",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "ea4c7b6d-645d-4e03-ab2c-990c55adfd8a",
+      "kwargs": {
+        "column": "NoOfQMarkInURL",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "edd1d55b-bcd0-4e0a-a49a-a5944aac6dbb",
+      "kwargs": {
+        "column": "NoOfAmpersandInURL",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "339fc838-395f-4e5a-a99b-bc0781728dc0",
+      "kwargs": {
+        "column": "NoOfOtherSpecialCharsInURL",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "5a123d27-0d53-4d94-91ac-5d978f529251",
+      "kwargs": {
+        "column": "SpacialCharRatioInURL",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "bf69a40b-3f5e-4ef1-943e-c5bc4bde4b37",
+      "kwargs": {
+        "column": "IsHTTPS",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "2e7675dc-dd69-43cc-a17d-57e89ace4762",
+      "kwargs": {
+        "column": "LineOfCode",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "15d8f186-26a1-49f7-8b65-4f6fd06b374e",
+      "kwargs": {
+        "column": "LargestLineLength",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "b3bf3c83-c743-4163-bbb8-3bdda982328b",
+      "kwargs": {
+        "column": "HasTitle",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "a325319b-0b93-4b86-aacf-2672b620d903",
+      "kwargs": {
+        "column": "DomainTitleMatchScore",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "40781cdd-bfed-4afa-9103-c3f5ee123bf5",
+      "kwargs": {
+        "column": "HasFavicon",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "4db85935-983d-481e-8854-7c213c087de9",
+      "kwargs": {
+        "column": "Robots",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "dc2030c0-2aed-404a-9b58-d4b27303ea12",
+      "kwargs": {
+        "column": "IsResponsive",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "d835ca2b-ffb3-4c2a-b3fa-c903a73d049f",
+      "kwargs": {
+        "column": "NoOfURLRedirect",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "0d06a398-e4c9-4418-a99f-19b8ff187c3a",
+      "kwargs": {
+        "column": "NoOfSelfRedirect",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "2a83d7e1-4a43-4917-a076-9da8aad3a62a",
+      "kwargs": {
+        "column": "HasDescription",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "69a73dce-2936-4e47-a336-0a2cc302d069",
+      "kwargs": {
+        "column": "NoOfPopup",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "6284a8c3-07a4-4595-a008-7e1240fe36fd",
+      "kwargs": {
+        "column": "NoOfiFrame",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "b4727bad-1e9d-49e2-ac37-88313791529c",
+      "kwargs": {
+        "column": "HasExternalFormSubmit",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "5a6ff465-d0b9-4ac1-a867-8fc71104a4e4",
+      "kwargs": {
+        "column": "HasSocialNet",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "d14ba6ac-0c44-4ba6-8cc1-9dcccf38d109",
+      "kwargs": {
+        "column": "HasSubmitButton",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "dea78c25-b2f2-4c73-910a-8445d59f9729",
+      "kwargs": {
+        "column": "HasHiddenFields",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "38341bf8-5324-4861-9fc6-c6e5baf4e0eb",
+      "kwargs": {
+        "column": "HasPasswordField",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "b1ebcc0c-176d-4c85-943d-c77214814ab0",
+      "kwargs": {
+        "column": "Bank",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "28959cd1-f1de-4bba-b1bc-a48e8ad8f4ee",
+      "kwargs": {
+        "column": "Pay",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "10af4e77-7a78-4f7e-9b13-6800e8de07d3",
+      "kwargs": {
+        "column": "Crypto",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "93253cf1-2c54-42af-b7cb-30694c3a566f",
+      "kwargs": {
+        "column": "HasCopyrightInfo",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "d7fa2727-3b65-4fe3-b3cd-25d46e46c73b",
+      "kwargs": {
+        "column": "NoOfImage",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "3a19eda4-0e7c-48fe-a952-23679b3c3223",
+      "kwargs": {
+        "column": "NoOfCSS",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "370ce9c8-1141-46c2-85f6-e02f702a88f8",
+      "kwargs": {
+        "column": "NoOfJS",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "7b0fddd9-674f-40e6-acbb-97e8dfa12eac",
+      "kwargs": {
+        "column": "NoOfSelfRef",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "958f38c7-df71-4beb-aac7-c35efb927711",
+      "kwargs": {
+        "column": "NoOfEmptyRef",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "8cb8ac3c-0c05-42f6-a49b-fef5f4977b26",
+      "kwargs": {
+        "column": "NoOfExternalRef",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    }
+  ],
+  "id": "55cfd06a-0aa1-4be2-8f69-a9c6dfaa2079",
+  "meta": {
+    "great_expectations_version": "1.4.0"
+  },
+  "name": "phiusiil_minimal",
+  "notes": null
+}
