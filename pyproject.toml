@@ -1,0 +1,14 @@
+# pyproject.toml
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+exclude = "venv|.venv|data|mlruns|docker|great_expectations/uncommitted"
