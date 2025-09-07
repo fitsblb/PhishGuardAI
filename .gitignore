@@ -4,3 +4,19 @@ venv/
 
 # Environment variables file
 .env
+
+# data artifacts (keep raw local)
+data/**/*
+!data/raw/*.csv
+!data/raw/*.parquet
+!data/raw/*.json
+
+# allow configs but ignore processed CSVs
+!data/processed/
+data/processed/*.csv
+
+# local runs and outputs
+mlruns/
+outputs/*.png
+outputs/*.csv
+
