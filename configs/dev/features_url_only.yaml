@@ -1,0 +1,33 @@
+# Source-policy: URL string only (no HTML/page-source).
+# Keep: URL-derived numerics and safe priors. Exclude: Title/HTML/DOM-derived features.
+
+include:
+  # The deterministic URL morphology (engineered in 00_eda):
+  - URLLength                # length of URL (chars)
+  - url_digit_ratio        # fraction of digits in URL
+  - url_subdomains         # dot count minus 1 on host
+
+  # Dataset URL-only signals (present in PhiUSIIL; include if column exists):
+  - NoOfOtherSpecialCharsInURL     # URL special char count/ratio (string-derived)
+  - SpacialCharRatioInURL          # typo in dataset name; still string-derived
+  - CharContinuationRate           # char-pattern rate in URL (0..1)
+  - URLCharProb                    # likelihood of URL character sequence (0..1)
+
+  # TLD prior (allowed in URL-only scope as agreed):
+  - TLDLegitimateProb              # reputation-like prior in [0,1]
+
+exclude:
+  # Page-source / HTML-dependent (NOT allowed in URL-only scope):
+  - URLSimilarityIndex             # needs Title/HTML
+  - URLTitleMatchScore             # needs Title
+  - LineOfCode
+  - LargestLineLength
+  - NoOfExternalRef
+  - NoOfImage
+  - NoOfJS
+  - NoOfSelfRef
+  - NoOfCSS
+
+notes:
+  policy: "URL-only baseline; no HTML/DOM fetches"
+  tld_raw: "exclude raw TLD for now; may add small one-hot later via separate manifest"

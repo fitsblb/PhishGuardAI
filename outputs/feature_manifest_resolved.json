@@ -1,0 +1,10 @@
+{
+  "features": [
+    "URLLength",
+    "NoOfOtherSpecialCharsInURL",
+    "SpacialCharRatioInURL",
+    "CharContinuationRate",
+    "URLCharProb",
+    "TLDLegitimateProb"
+  ]
+}
