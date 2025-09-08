@@ -3,7 +3,7 @@
 
 include:
   # The deterministic URL morphology (engineered in 00_eda):
-  - URLLength                # length of URL (chars)
+  - url_len               # length of URL (chars)
   - url_digit_ratio        # fraction of digits in URL
   - url_subdomains         # dot count minus 1 on host
 

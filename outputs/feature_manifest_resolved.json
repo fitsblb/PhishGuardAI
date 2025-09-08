@@ -1,6 +1,8 @@
 {
   "features": [
-    "URLLength",
+    "url_len",
+    "url_digit_ratio",
+    "url_subdomains",
     "NoOfOtherSpecialCharsInURL",
     "SpacialCharRatioInURL",
     "CharContinuationRate",

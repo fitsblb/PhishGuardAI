@@ -1,0 +1,25 @@
+{
+  "rows": 235370,
+  "cols": 58,
+  "file": "data\\processed\\phiusiil_clean_urlfeats.csv",
+  "md5": "30393b938e541b7b3cef650818740d20",
+  "added_features": [
+    "url_len",
+    "url_digit_ratio",
+    "url_subdomains"
+  ],
+  "ranges": {
+    "url_len": [
+      14,
+      6097
+    ],
+    "url_digit_ratio": [
+      0.0,
+      0.6842105263157895
+    ],
+    "url_subdomains": [
+      0,
+      10
+    ]
+  }
+}
