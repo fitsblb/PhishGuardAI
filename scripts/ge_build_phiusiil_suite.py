@@ -25,7 +25,7 @@ except (ValueError, gx.exceptions.DataContextError):
     # Initialize a new GE project in the current directory
     print("[GE] No Great Expectations project found. Initializing...")
     ctx = gx.get_context(mode="file")  # Creates file-based context
-    print("[GE] Initialized Great Expectations project at: " f"{ctx.root_directory}")
+    print(f"[GE] Initialized Great Expectations project at: {ctx.root_directory}")
 
 # Create pandas datasource
 try:
@@ -39,6 +39,7 @@ try:
 except (ValueError, KeyError, AttributeError, LookupError):
     asset = datasource.add_dataframe_asset("phiusiil_df")
 
+
 # Create batch definition for the whole dataframe
 try:
     batch_definition = asset.get_batch_definition("phiusiil_batch")
@@ -51,73 +52,68 @@ batch_parameters = {"dataframe": df}
 # Get the batch
 batch = batch_definition.get_batch(batch_parameters=batch_parameters)
 
+
 # Create or get expectation suite
 try:
-    suite = ctx.suites.get(SUITE_NAME)
-    # Clear existing expectations to rebuild
-    suite.expectations = []
-except (ValueError, KeyError, gx.exceptions.DataContextError):
-    suite = ctx.suites.add(gx.ExpectationSuite(name=SUITE_NAME))
+    ctx.suites.delete(SUITE_NAME)
+except Exception:  # nosec B110
+    # Suite doesn't exist, which is fine
+    pass
+suite = ctx.suites.add(gx.ExpectationSuite(name=SUITE_NAME))
 
 # Get validator using the batch
 validator = ctx.get_validator(batch=batch, expectation_suite=suite)
 
-
 # 3) Expectations grounded in your EDA
+# --- GE hardening derived from URL-only policy ---
+
+
 def has(col: str) -> bool:
     return col in df.columns
 
 
-# Label checks
+# 1) Core invariants
 label_col = next(
-    (c for c in df.columns if c.lower() in {"label", "result", "y", "target"}),
-    "label",
+    (c for c in df.columns if c.lower() in {"label", "result", "y", "target"}), "label"
 )
 validator.expect_column_values_to_not_be_null(label_col)
 validator.expect_column_values_to_be_in_set(label_col, [0, 1])
 
-# URL presence & uniqueness (run after dedup)
 if has("URL"):
     validator.expect_column_values_to_not_be_null("URL")
     validator.expect_column_values_to_be_unique("URL")
 
-# Probability-like features expected in [0,1]
-prob_like_candidates = [
-    "CharContinuationRate",
-    "URLTitleMatchScore",
-    "URLCharProb",
-    "TLDLegitimateProb",
-]
-for c in prob_like_candidates:
+# 2) URL-only engineered features (ranges/dtypes)
+if has("url_len"):
+    validator.expect_column_values_to_be_between("url_len", min_value=0)
+    validator.expect_column_values_to_be_of_type("url_len", "int64")
+
+if has("url_subdomains"):
+    validator.expect_column_values_to_be_between("url_subdomains", min_value=0)
+    validator.expect_column_values_to_be_of_type("url_subdomains", "int64")
+
+if has("url_digit_ratio"):
+    validator.expect_column_values_to_be_between(
+        "url_digit_ratio", min_value=0.0, max_value=1.0
+    )
+    validator.expect_column_values_to_be_of_type("url_digit_ratio", "float64")
+
+# 3) Probability-like URL priors (must be in [0,1])
+for c in ["CharContinuationRate", "URLCharProb", "TLDLegitimateProb"]:
     if has(c):
         validator.expect_column_values_to_be_between(c, min_value=0.0, max_value=1.0)
 
-# Binary-like features constrained to {0,1} (exclude the label itself)
-for c in df.columns:
-    if c == label_col:
-        continue
-    s = df[c]
-    if pd.api.types.is_integer_dtype(s) or pd.api.types.is_bool_dtype(s):
-        non_null = s.dropna()
-        if not non_null.empty and non_null.isin([0, 1]).all():
-            validator.expect_column_values_to_be_in_set(c, [0, 1])
+# 4) Keep page-source strings as strings (so they never sneak in numerically)
+for c in ["Domain", "TLD", "Title"]:
+    if has(c):
+        validator.expect_column_values_to_be_of_type(c, "object")
 
-# Non-negative numeric counts/rates (skip those already handled)
-numeric_cols = df.select_dtypes(include=["int64", "float64"]).columns.tolist()
-skip = set([label_col] + [c for c in prob_like_candidates if has(c)])
-for c in numeric_cols:
-    if c in skip:
-        continue
-    if df[c].min() >= 0:
-        validator.expect_column_values_to_be_between(c, min_value=0)
+# 5) Optional: boolean flags constrained to {0,1} (skip label itself)
+for c in df.select_dtypes(include=["int64", "bool"]).columns:
+    if c != label_col and df[c].dropna().isin([0, 1]).all():
+        validator.expect_column_values_to_be_in_set(c, [0, 1])
 
-# 4) Save suite - just save, don't add since we already have it in context
+# Save suite
 ctx.suites.add_or_update(validator.expectation_suite)
-
-print(
-    f"[GE] Suite '{SUITE_NAME}' created with "
-    f"{len(validator.expectation_suite.expectations)} expectations."
-)
-print(f"[GE] Context root: {getattr(ctx, 'root_directory', 'N/A')}")
-print(f"Dropped exact duplicate URLs: {dup_total}")
-print(f"Cleaned CSV written → {OUT_CSV}")
+expectations_count = len(validator.expectation_suite.expectations)
+print(f"[GE] Hardened suite saved with {expectations_count} expectations.")
