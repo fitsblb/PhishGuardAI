@@ -1,5 +1,5 @@
-# Feature configuration for URL-only model
-# This configuration includes only features that can be extracted from the dataset
+
+
 include:
   - url_len
   - url_digit_ratio
@@ -24,4 +24,3 @@ exclude:
 notes:
   policy: "URL-only baseline; no HTML/DOM fetches"
   tld_raw: "exclude raw TLD for now; may add curated one-hot later"
-  url_raw: "exclude raw URL for now; may add char-level later"
