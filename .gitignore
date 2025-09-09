@@ -20,3 +20,5 @@ mlruns/
 outputs/*.png
 outputs/*.csv
 
+mlflow.db
+
