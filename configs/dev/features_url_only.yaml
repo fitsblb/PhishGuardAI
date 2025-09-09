@@ -1,25 +1,18 @@
-# Source-policy: URL string only (no HTML/page-source).
-# Keep: URL-derived numerics and safe priors. Exclude: Title/HTML/DOM-derived features.
-
+# Feature configuration for URL-only model
+# This configuration includes only features that can be extracted from the dataset
 include:
-  # The deterministic URL morphology (engineered in 00_eda):
-  - url_len               # length of URL (chars)
-  - url_digit_ratio        # fraction of digits in URL
-  - url_subdomains         # dot count minus 1 on host
-
-  # Dataset URL-only signals (present in PhiUSIIL; include if column exists):
-  - NoOfOtherSpecialCharsInURL     # URL special char count/ratio (string-derived)
-  - SpacialCharRatioInURL          # typo in dataset name; still string-derived
-  - CharContinuationRate           # char-pattern rate in URL (0..1)
-  - URLCharProb                    # likelihood of URL character sequence (0..1)
-
-  # TLD prior (allowed in URL-only scope as agreed):
-  - TLDLegitimateProb              # reputation-like prior in [0,1]
+  - url_len
+  - url_digit_ratio
+  - url_subdomains
+  - NoOfOtherSpecialCharsInURL
+  - SpacialCharRatioInURL
+  - CharContinuationRate
+  - URLCharProb
+  - TLDLegitimateProb
 
 exclude:
-  # Page-source / HTML-dependent (NOT allowed in URL-only scope):
-  - URLSimilarityIndex             # needs Title/HTML
-  - URLTitleMatchScore             # needs Title
+  - URLSimilarityIndex
+  - URLTitleMatchScore
   - LineOfCode
   - LargestLineLength
   - NoOfExternalRef
@@ -30,4 +23,5 @@ exclude:
 
 notes:
   policy: "URL-only baseline; no HTML/DOM fetches"
-  tld_raw: "exclude raw TLD for now; may add small one-hot later via separate manifest"
+  tld_raw: "exclude raw TLD for now; may add curated one-hot later"
+  url_raw: "exclude raw URL for now; may add char-level later"
