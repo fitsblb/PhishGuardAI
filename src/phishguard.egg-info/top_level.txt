@@ -1,5 +1,0 @@
-common
-feature_svc
-gateway
-judge_svc
-model_svc
