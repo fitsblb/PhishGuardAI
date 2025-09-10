@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from src.common.thresholds import decide, load_thresholds
+from common.thresholds import decide, load_thresholds
 
 
 @pytest.fixture()
