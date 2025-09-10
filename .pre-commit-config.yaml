@@ -13,4 +13,4 @@ repos:
   hooks: [{id: mypy}]
 - repo: https://github.com/PyCQA/bandit
   rev: 1.8.6
-  hooks: [{id: bandit}]
+  hooks: [{id: bandit, args: [--exclude, tests, --skip, B101]}]
