@@ -20,7 +20,7 @@ dependencies = [
   "uvicorn[standard]>=0.23.0,<0.35",
   "pymongo>=4.0.0,<5.0",
   "mlflow>=2.10.0,<2.20",
-  "great-expectations>=0.18.0,<1.0",
+  "great-expectations>=1.4,<2.0",
   "pydantic>=2.0.0,<3.0",
   "pyyaml>=6.0"
 ]
