@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, Literal, Optional
 
+from common.stats import inc_decision, inc_judge
 from common.thresholds import Thresholds, decide  # your existing loader & policy
 from judge_svc.adapter import judge_url_llm
 from judge_svc.contracts import FeatureDigest, JudgeRequest, JudgeResponse
@@ -76,6 +77,7 @@ def decide_with_judge(
       LEAN_PHISH -> BLOCK, LEAN_LEGIT -> ALLOW, UNCERTAIN -> REVIEW
     """
     base_decision: Decision = decide(p_malicious, th)  # uses low/high
+    inc_decision(base_decision)
     if base_decision != "REVIEW":
         return JudgeOutcome(
             final_decision=base_decision, policy_reason="policy-band", judge=None
@@ -106,6 +108,10 @@ def decide_with_judge(
     else:
         final = "REVIEW"
         reason = "judge-uncertain"
+
+    # Track judge verdict and final decision
+    inc_judge(jr.verdict)
+    inc_decision(final)
 
     # Optional: write audit logs if Mongo is configured
     if _mongo:

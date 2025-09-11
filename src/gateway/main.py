@@ -6,6 +6,8 @@ from typing import Any, Dict, Literal, Optional
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
+from common.stats import snapshot
+
 # Imports match our editable-install (src-layout) packaging
 from common.thresholds import Thresholds, load_thresholds
 from gateway.judge_wire import decide_with_judge
@@ -145,3 +147,9 @@ def predict(payload: PredictIn):
         judge=(None if outcome.judge is None else outcome.judge.model_dump()),
         source=src,
     )
+
+
+@app.get("/stats")
+def stats():
+    """Get observability statistics for decisions and judge verdicts."""
+    return snapshot()
