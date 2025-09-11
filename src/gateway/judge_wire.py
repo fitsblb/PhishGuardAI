@@ -5,10 +5,21 @@ from dataclasses import dataclass
 from typing import Any, Dict, Literal, Optional
 
 from common.thresholds import Thresholds, decide  # your existing loader & policy
+from judge_svc.adapter import judge_url_llm
 from judge_svc.contracts import FeatureDigest, JudgeRequest, JudgeResponse
-from judge_svc.stub import judge_url
+from judge_svc.stub import judge_url as judge_url_stub
 
 Decision = Literal["ALLOW", "REVIEW", "BLOCK"]
+
+# --- Judge backend selection ---
+_JUDGE_BACKEND = os.getenv("JUDGE_BACKEND", "stub").lower()
+
+
+def _select_judge():
+    return judge_url_llm if _JUDGE_BACKEND == "llm" else judge_url_stub
+
+
+_JUDGE_FN = _select_judge()
 
 # --- optional Mongo logging (no-op if env not set) ---
 _MONGO_URI = os.getenv("MONGO_URI")
@@ -83,7 +94,7 @@ def decide_with_judge(
         URLCharProb=(extras or {}).get("URLCharProb"),
     )
     req = JudgeRequest(url=url, features=digest)
-    jr = judge_url(req)  # deterministic stub for now
+    jr = _JUDGE_FN(req)  # uses selected judge backend (stub or llm)
 
     # Map judge verdict to final decision
     if jr.verdict == "LEAN_PHISH":

@@ -35,14 +35,14 @@ def test_review_calls_judge_and_maps(monkeypatch):
                 context=self.context,
             )
 
-    monkeypatch.setattr(gateway.judge_wire, "judge_url", lambda req: JR("LEAN_PHISH"))
+    monkeypatch.setattr(gateway.judge_wire, "_JUDGE_FN", lambda req: JR("LEAN_PHISH"))
     out = decide_with_judge("http://foo/login", p_malicious=0.45, th=TH)
     assert out.final_decision == "BLOCK"
 
-    monkeypatch.setattr(gateway.judge_wire, "judge_url", lambda req: JR("LEAN_LEGIT"))
+    monkeypatch.setattr(gateway.judge_wire, "_JUDGE_FN", lambda req: JR("LEAN_LEGIT"))
     out = decide_with_judge("http://foo/login", p_malicious=0.45, th=TH)
     assert out.final_decision == "ALLOW"
 
-    monkeypatch.setattr(gateway.judge_wire, "judge_url", lambda req: JR("UNCERTAIN"))
+    monkeypatch.setattr(gateway.judge_wire, "_JUDGE_FN", lambda req: JR("UNCERTAIN"))
     out = decide_with_judge("http://foo/login", p_malicious=0.45, th=TH)
     assert out.final_decision == "REVIEW"
