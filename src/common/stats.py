@@ -3,20 +3,34 @@ from __future__ import annotations
 from collections import Counter
 from typing import Dict
 
-# Simple process-wide counters (sufficient for local/demo use)
-_decisions: Counter[str] = Counter()
-_judge_verdicts: Counter[str] = Counter()
+_policy: Counter[str] = Counter()  # ALLOW | REVIEW | BLOCK (policy band)
+_final: Counter[str] = (
+    Counter()
+)  # ALLOW | BLOCK (after judge mapping; REVIEW possible if judge uncertain)
+_judge: Counter[str] = Counter()  # LEAN_PHISH | LEAN_LEGIT | UNCERTAIN
 
 
-def inc_decision(kind: str) -> None:
-    # kind in {"ALLOW","REVIEW","BLOCK"}
-    _decisions[kind] += 1
+def inc_policy(kind: str) -> None:
+    _policy[kind] += 1
+
+
+def inc_final(kind: str) -> None:
+    _final[kind] += 1
 
 
 def inc_judge(verdict: str) -> None:
-    # verdict in {"LEAN_PHISH","LEAN_LEGIT","UNCERTAIN"}
-    _judge_verdicts[verdict] += 1
+    _judge[verdict] += 1
 
 
 def snapshot() -> Dict[str, Dict[str, int]]:
-    return {"decisions": dict(_decisions), "judge_verdicts": dict(_judge_verdicts)}
+    return {
+        "policy_decisions": dict(_policy),
+        "final_decisions": dict(_final),
+        "judge_verdicts": dict(_judge),
+    }
+
+
+def reset() -> None:
+    _policy.clear()
+    _final.clear()
+    _judge.clear()

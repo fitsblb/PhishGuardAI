@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, Literal, Optional
 
-from common.stats import inc_decision, inc_judge
+from common.stats import inc_final, inc_judge, inc_policy
 from common.thresholds import Thresholds, decide  # your existing loader & policy
 from judge_svc.adapter import judge_url_llm
 from judge_svc.contracts import FeatureDigest, JudgeRequest, JudgeResponse
@@ -26,18 +26,24 @@ _JUDGE_FN = _select_judge()
 _MONGO_URI = os.getenv("MONGO_URI")
 _MONGO_DB = os.getenv("MONGO_DB", "phishguard")
 _mongo = None
+_decisions = None
+_rationales = None
+
 if _MONGO_URI:
     try:
         from pymongo import ASCENDING, MongoClient
 
         _mongo = MongoClient(_MONGO_URI, serverSelectionTimeoutMS=1500)
-        _db = _mongo[_MONGO_DB]
-        _decisions = _db["decisions"]
-        _rationales = _db["judge_rationales"]
-        _decisions.create_index([("created_at", ASCENDING)])
-        _rationales.create_index([("created_at", ASCENDING)])
+        if _mongo is not None:
+            _db = _mongo[_MONGO_DB]
+            _decisions = _db["decisions"]
+            _rationales = _db["judge_rationales"]
+            _decisions.create_index([("created_at", ASCENDING)])
+            _rationales.create_index([("created_at", ASCENDING)])
     except Exception:
         _mongo = None  # fail open if Mongo unavailable in local demos  # nosec B110
+        _decisions = None
+        _rationales = None
 
 
 # --- tiny URL feature helpers (deterministic, matches training features) ---
@@ -77,8 +83,9 @@ def decide_with_judge(
       LEAN_PHISH -> BLOCK, LEAN_LEGIT -> ALLOW, UNCERTAIN -> REVIEW
     """
     base_decision: Decision = decide(p_malicious, th)  # uses low/high
-    inc_decision(base_decision)
+    inc_policy(base_decision)
     if base_decision != "REVIEW":
+        inc_final(base_decision)  # final == policy when not REVIEW
         return JudgeOutcome(
             final_decision=base_decision, policy_reason="policy-band", judge=None
         )
@@ -111,10 +118,10 @@ def decide_with_judge(
 
     # Track judge verdict and final decision
     inc_judge(jr.verdict)
-    inc_decision(final)
+    inc_final(final)
 
     # Optional: write audit logs if Mongo is configured
-    if _mongo:
+    if _mongo and _decisions and _rationales:
         try:
             from datetime import datetime
 
