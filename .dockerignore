@@ -1,17 +1,38 @@
-# VCS
+# .dockerignore  (BRANCH: feature/docker-slim-gateway)
 .git
-.gitignore
-
-# Python
-__pycache__/
+.venv
+venv
+data
+mlruns
+mlartifacts
+outputs
+notebooks
+tests
+Dockerfile
+**/__pycache__/
 *.pyc
+*.pyo
+*.pyd
+*.log
 
-# Envs & local tools
-.venv/
-venv/
+# IDE & Development Tools
+.vscode/
+.mypy_cache/
+.pytest_cache/
+
+# Database & State Files
+*.db
+mlflow.db
+
+# CI/CD & Config
+.github/
+.pre-commit-config.yaml
+.bandit
+.flake8
+pytest.ini
+requirements*.txt
+requirements.in
+
+# Environment & Secrets
 .env
-
-# Data & experiments (we'll mount or volume these later)
-data/
-mlruns/
-great_expectations/uncommitted/
+.env.example
