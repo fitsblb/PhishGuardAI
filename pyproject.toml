@@ -34,7 +34,8 @@ dev = [
   "mypy>=1.0,<2.0",
   "flake8>=6.0,<8.0",
   "bandit>=1.7,<2.0",
-  "pre-commit>=3.0,<4.0"
+  "pre-commit>=3.0,<4.0",
+  "httpx>=0.24.0,<0.30"
 ]
 
 [tool.setuptools]
