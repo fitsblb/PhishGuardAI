@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
-try:
+if TYPE_CHECKING:
     from pymongo.collection import Collection
-except Exception:  # pragma: no cover
-    Collection = Any  # fallback typing if pymongo isn't installed
+else:
+    try:
+        from pymongo.collection import Collection
+    except ImportError:  # pragma: no cover
+        Collection = Any  # fallback typing if pymongo isn't installed
 
 
 # ---- Records (structured, easy to test / serialize) ----

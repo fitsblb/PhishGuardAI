@@ -6,7 +6,7 @@ from typing import Any, Dict, Literal, Optional
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
-from common.stats import snapshot
+from common.stats import reset, snapshot
 
 # Imports match our editable-install (src-layout) packaging
 from common.thresholds import Thresholds, load_thresholds
@@ -122,7 +122,7 @@ def predict(payload: PredictIn):
     # 1) choose p_malicious (prefer model-supplied; otherwise heuristic)
     if payload.p_malicious is not None:
         p_mal = float(payload.p_malicious)
-        src = "model"
+        src: Literal["model", "heuristic"] = "model"
     else:
         p_mal = _heuristic_pmal(payload.url)
         src = "heuristic"
@@ -153,3 +153,9 @@ def predict(payload: PredictIn):
 def stats():
     """Get observability statistics for decisions and judge verdicts."""
     return snapshot()
+
+
+@app.post("/stats/reset")
+def stats_reset():
+    reset()
+    return {"ok": True}
