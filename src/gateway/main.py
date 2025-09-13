@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from typing import Any, Dict, Literal, Optional
 
+import requests  # type: ignore
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
@@ -13,6 +14,9 @@ from common.thresholds import Thresholds, load_thresholds
 from gateway.judge_wire import decide_with_judge
 
 app = FastAPI(title="PhishGuard Gateway")
+
+# --------- Environment Configuration ---------
+MODEL_SVC_URL = os.getenv("MODEL_SVC_URL")  # e.g., http://127.0.0.1:9000
 
 # --------- thresholds (loaded once at startup) ---------
 THRESH_PATH = os.getenv("THRESHOLDS_JSON", "configs/dev/thresholds.json")
@@ -105,6 +109,29 @@ def _heuristic_pmal(url: str) -> float:
     return max(0.0, min(1.0, risk))
 
 
+def _call_model_service(
+    url: str, extras: dict | None, timeout: float = 3.0
+) -> float | None:
+    """Return p_malicious from the model service or None on any error."""
+    model_svc_url = os.getenv("MODEL_SVC_URL")  # Read at runtime for testability
+    if not model_svc_url:
+        return None
+    try:
+        r = requests.post(
+            f"{model_svc_url.rstrip('/')}/predict",
+            json={"url": url},  # Model service only expects url
+            timeout=timeout,
+        )
+        r.raise_for_status()
+        data = r.json()
+        p = float(data.get("p_malicious", 0.0))
+        if 0.0 <= p <= 1.0:
+            return p
+        return None
+    except Exception:
+        return None
+
+
 # --------- routes ---------
 @app.get("/health")
 def health():
@@ -119,18 +146,21 @@ def config():
 
 @app.post("/predict", response_model=PredictOut)
 def predict(payload: PredictIn):
-    # 1) choose p_malicious (prefer model-supplied; otherwise heuristic)
+    # choose p_malicious (prefer caller; else model service; else heuristic)
+    extras = payload.extras.model_dump() if payload.extras else {}
     if payload.p_malicious is not None:
         p_mal = float(payload.p_malicious)
-        src: Literal["model", "heuristic"] = "model"
+        src = "model"
     else:
-        p_mal = _heuristic_pmal(payload.url)
-        src = "heuristic"
+        p_from_svc = _call_model_service(payload.url, extras)
+        if p_from_svc is not None:
+            p_mal = p_from_svc
+            src = "model"
+        else:
+            p_mal = _heuristic_pmal(payload.url)
+            src = "heuristic"
 
-    # 2) extras for judge (optional)
-    extras = payload.extras.model_dump() if payload.extras else {}
-
-    # 3) policy band → maybe judge → final decision
+    # 2) policy band → maybe judge → final decision
     outcome = decide_with_judge(payload.url, p_mal, TH, extras=extras)
 
     return PredictOut(
