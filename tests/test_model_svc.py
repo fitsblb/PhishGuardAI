@@ -4,7 +4,7 @@ Tests for the model service.
 
 from fastapi.testclient import TestClient
 
-from src.model_svc.main import app
+from model_svc.main import app
 
 client = TestClient(app)
 
