@@ -15,7 +15,9 @@ jobs:
           python-version: "3.11"
       - run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          # Install most requirements, skip platform-specific ones that fail
+          sed '/pywin32/d' requirements.txt > requirements-ci.txt
+          pip install -r requirements-ci.txt
           pip install pytest pytest-cov black isort flake8 mypy
       - run: |
           black --check .
