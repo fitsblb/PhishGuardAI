@@ -485,3 +485,5 @@ xgboost==3.0.4
     # via -r requirements.in
 zipp==3.23.0
     # via importlib-metadata
+tldextract==5.3.0
+    # via posthog

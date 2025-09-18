@@ -14,6 +14,29 @@ from common.stats import reset, snapshot
 from common.thresholds import Thresholds, load_thresholds
 from gateway.judge_wire import decide_with_judge
 
+# List of expected extras keys for normalization
+_EXPECTED_EXTRAS_KEYS = [
+    "TLDLegitimateProb",
+    "NoOfOtherSpecialCharsInURL",
+    "SpacialCharRatioInURL",
+    "CharContinuationRate",
+    "URLCharProb",
+    "url_len",
+    "url_digit_ratio",
+    "url_subdomains",
+]
+
+
+# Normalize extras dict to ensure all expected keys are present
+def _normalize_extras(extras: dict | None) -> dict:
+    base = {k: None for k in _EXPECTED_EXTRAS_KEYS}
+    if extras:
+        for k in _EXPECTED_EXTRAS_KEYS:
+            if k in extras:
+                base[k] = extras[k]
+    return base
+
+
 # --------- Config ---------
 THRESH_PATH = os.getenv("THRESHOLDS_JSON", "configs/dev/thresholds.json")
 MAX_REQ_BYTES = int(os.getenv("MAX_REQ_BYTES", "8192"))  # 8KB default
@@ -133,7 +156,8 @@ def _call_model_service(url: str, extras: Dict[str, Any]) -> Optional[float]:
         return None
 
     try:
-        response = requests.post(f"{model_url}/predict", json={"url": url}, timeout=3.0)
+        payload = {"url": url, "extras": _normalize_extras(extras)}
+        response = requests.post(f"{model_url}/predict", json=payload, timeout=3.0)
         response.raise_for_status()
         data = response.json()
         p_malicious = data.get("p_malicious")
