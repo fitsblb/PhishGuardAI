@@ -37,7 +37,10 @@ def test_predict_endpoint_basic():
 
 def test_predict_endpoint_suspicious_url():
     """Test predict endpoint with suspicious URL characteristics."""
-    response = client.post("/predict", json={"url": "http://ex.com/login?acct=12345"})
+    response = client.post(
+        "/predict",
+        json={"url": "http://ex.com/login?acct=12345"},
+    )
     assert response.status_code == 200
     data = response.json()
 
