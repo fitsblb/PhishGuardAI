@@ -15,10 +15,9 @@ jobs:
           python-version: "3.11"
       - run: |
           python -m pip install --upgrade pip
-          # Install requirements, skipping packages that fail on this platform
-          pip install -r requirements.txt --force-reinstall --no-deps || echo "Some packages failed, continuing..."
-          # Install essential packages individually
-          pip install fastapi uvicorn pydantic scikit-learn xgboost pandas numpy joblib
+          # Skip pywin32 on Linux runners, install everything else
+          grep -v "pywin32" requirements.txt > requirements-linux.txt || cp requirements.txt requirements-linux.txt
+          pip install -r requirements-linux.txt
           pip install pytest pytest-cov black isort flake8 mypy
       - run: |
           black --check .
