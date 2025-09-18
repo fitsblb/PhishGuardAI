@@ -19,7 +19,7 @@ services:
 
   gateway:
     build: { context: .., dockerfile: docker/gateway.Dockerfile }
-    ports: ["8080:8080"]
+    ports: ["8080:8000"]
     depends_on:
       feature-svc: { condition: service_healthy }
       model-svc: { condition: service_healthy }

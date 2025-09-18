@@ -19,6 +19,8 @@ jobs:
           grep -v "pywin32" requirements.txt > requirements-linux.txt || cp requirements.txt requirements-linux.txt
           pip install -r requirements-linux.txt
           pip install pytest pytest-cov black isort flake8 mypy
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$PYTHONPATH:$(pwd)/src:$(pwd)" >> $GITHUB_ENV
       - run: |
           black --check .
           isort --check-only .

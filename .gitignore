@@ -1,5 +1,45 @@
 # Python virtual environment
 venv/
 
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Package build artifacts
+*.egg-info/
+build/
+dist/
+
 # Environment variables file
 .env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# data artifacts (keep raw local)
+data/**/*
+!data/raw/*.csv
+!data/raw/*.parquet
+!data/raw/*.json
+
+# allow configs but ignore processed CSVs
+!data/processed/
+data/processed/*.csv
+
+# local runs and outputs
+mlruns/
+outputs/*.png
+outputs/*.csv
+
+mlflow.db
+mlflow.db
+

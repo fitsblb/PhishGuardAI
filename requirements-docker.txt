@@ -4,6 +4,7 @@ uvicorn[standard]      # ASGI server for FastAPI (standard includes useful extra
 pydantic>=2            # Data validation and settings management using Python type annotations
 python-multipart       # Multipart form data parser for FastAPI file uploads
 rich                   # Rich text and beautiful formatting in the terminal
+types-requests          # Type stubs for requests library
 
 # --- Machine Learning ---
 scikit-learn           # Core machine learning algorithms and utilities

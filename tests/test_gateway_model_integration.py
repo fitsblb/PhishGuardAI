@@ -23,7 +23,10 @@ class TestModelServiceIntegration:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = {"p_malicious": 0.75, "source": "heuristic"}
+        mock_response.json.return_value = {
+            "p_malicious": 0.75,
+            "source": "heuristic",
+        }
         mock_post.return_value = mock_response
 
         result = _call_model_service("http://example.com", {})
@@ -31,7 +34,19 @@ class TestModelServiceIntegration:
         assert result == 0.75
         mock_post.assert_called_once_with(
             "http://localhost:9000/predict",
-            json={"url": "http://example.com"},
+            json={
+                "url": "http://example.com",
+                "extras": {
+                    "TLDLegitimateProb": None,
+                    "NoOfOtherSpecialCharsInURL": None,
+                    "SpacialCharRatioInURL": None,
+                    "CharContinuationRate": None,
+                    "URLCharProb": None,
+                    "url_len": None,
+                    "url_digit_ratio": None,
+                    "url_subdomains": None,
+                },
+            },
             timeout=3.0,
         )
 
@@ -111,7 +126,8 @@ class TestModelServiceIntegration:
         assert response.status_code == 200
         data = response.json()
         assert data["source"] == "heuristic"
-        assert 0.0 <= data["p_malicious"] <= 1.0  # Valid probability from heuristic
+        # Valid probability from heuristic
+        assert 0.0 <= data["p_malicious"] <= 1.0
 
         # Verify model service was attempted
         mock_call_model.assert_called_once_with("http://example.com", {})
@@ -123,7 +139,8 @@ class TestModelServiceIntegration:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["source"] == "heuristic"  # Should fall back to heuristic
+        # Should fall back to heuristic
+        assert data["source"] == "heuristic"
         assert 0.0 <= data["p_malicious"] <= 1.0
 
     @patch("gateway.main._call_model_service")
@@ -131,19 +148,22 @@ class TestModelServiceIntegration:
         """Test /predict passes extras correctly."""
         mock_call_model.return_value = 0.45
 
-        extras_data = {"TLDLegitimateProb": 0.8, "NoOfOtherSpecialCharsInURL": 3}
+        extras_data = {
+            "TLDLegitimateProb": 0.8,
+            "NoOfOtherSpecialCharsInURL": 3,
+        }
 
         with patch.dict(os.environ, {"MODEL_SVC_URL": "http://localhost:9000"}):
             response = client.post(
-                "/predict", json={"url": "http://test.com", "extras": extras_data}
+                "/predict",
+                json={"url": "http://test.com", "extras": extras_data},
             )
 
         assert response.status_code == 200
         data = response.json()
         assert data["source"] == "model"
 
-        # Verify model service was called - expect all ExtrasIn fields
-        # (including None values)
+        # Verify model service was called - expect all ExtrasIn fields (incl. None)
         expected_extras = {
             "TLDLegitimateProb": 0.8,
             "NoOfOtherSpecialCharsInURL": 3,
@@ -167,8 +187,9 @@ class TestModelServiceIntegration:
                 },
             )
 
-            data = response.json()
-            assert data["p_malicious"] == 0.2
-            assert data["source"] == "model"
-            # Model service should not be called when p_malicious is provided
-            mock_call_model.assert_not_called()
+        assert response.status_code == 200
+        data = response.json()
+        assert data["p_malicious"] == 0.2
+        assert data["source"] == "model"
+        # Model service should not be called when p_malicious is provided
+        mock_call_model.assert_not_called()

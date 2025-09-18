@@ -3,7 +3,12 @@ from types import SimpleNamespace
 from common.thresholds import Thresholds
 from gateway.judge_wire import decide_with_judge
 
-TH: Thresholds = {"t_star": 0.45, "low": 0.30, "high": 0.60, "gray_zone_rate": 0.10}
+TH: Thresholds = {
+    "t_star": 0.45,
+    "low": 0.30,
+    "high": 0.60,
+    "gray_zone_rate": 0.10,
+}
 
 
 def test_policy_allows_without_judge():
@@ -28,21 +33,33 @@ def test_review_calls_judge_and_maps(monkeypatch):
             self.context = {}
 
         def model_dump(self):
-            return dict(
-                verdict=self.verdict,
-                rationale=self.rationale,
-                judge_score=self.judge_score,
-                context=self.context,
-            )
+            return {
+                "verdict": self.verdict,
+                "rationale": self.rationale,
+                "judge_score": self.judge_score,
+                "context": self.context,
+            }
 
-    monkeypatch.setattr(gateway.judge_wire, "_JUDGE_FN", lambda req: JR("LEAN_PHISH"))
+    monkeypatch.setattr(
+        gateway.judge_wire,
+        "_JUDGE_FN",
+        lambda req: JR("LEAN_PHISH"),
+    )
     out = decide_with_judge("http://foo/login", p_malicious=0.45, th=TH)
     assert out.final_decision == "BLOCK"
 
-    monkeypatch.setattr(gateway.judge_wire, "_JUDGE_FN", lambda req: JR("LEAN_LEGIT"))
+    monkeypatch.setattr(
+        gateway.judge_wire,
+        "_JUDGE_FN",
+        lambda req: JR("LEAN_LEGIT"),
+    )
     out = decide_with_judge("http://foo/login", p_malicious=0.45, th=TH)
     assert out.final_decision == "ALLOW"
 
-    monkeypatch.setattr(gateway.judge_wire, "_JUDGE_FN", lambda req: JR("UNCERTAIN"))
+    monkeypatch.setattr(
+        gateway.judge_wire,
+        "_JUDGE_FN",
+        lambda req: JR("UNCERTAIN"),
+    )
     out = decide_with_judge("http://foo/login", p_malicious=0.45, th=TH)
     assert out.final_decision == "REVIEW"

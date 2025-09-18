@@ -32,5 +32,9 @@ def test_gateway_imports_with_temp_thresholds(monkeypatch, tmp_path: Path):
     # Judge wiring is importable and callable
     jw = importlib.import_module("gateway.judge_wire")
     TH = gw_main.TH
-    outcome = jw.decide_with_judge("https://example.com", p_malicious=0.05, th=TH)
+    outcome = jw.decide_with_judge(
+        "https://example.com",
+        p_malicious=0.05,
+        th=TH,
+    )
     assert outcome.final_decision in {"ALLOW", "REVIEW", "BLOCK"}

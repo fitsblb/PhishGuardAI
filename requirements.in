@@ -41,3 +41,8 @@ bandit                 # Security linter for Python code
 #----- DataBase------------
 pymongo
 pymongo[srv]==3.6
+
+# URL extraction
+tldextract==5.3.0
+types-requests==2.28.11
+httpx                  # HTTP client for FastAPI/Starlette tests
