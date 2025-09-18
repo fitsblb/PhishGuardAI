@@ -1,0 +1,24 @@
+name: Data Contract
+on:
+  pull_request:
+  push:
+    branches: [dev, main]
+
+jobs:
+  ge_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -U pip pandas numpy
+      - name: Run data contract check (if file exists)
+        shell: bash
+        run: |
+          CSV="data/processed/phiusiil_clean_urlfeats.csv"
+          if [ -f "$CSV" ]; then
+            python scripts/ge_check.py --csv "$CSV"
+          else
+            echo "No processed CSV found ($CSV); skipping."
+          fi
