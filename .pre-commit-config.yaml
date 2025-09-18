@@ -10,7 +10,7 @@ repos:
   hooks: [{id: flake8}]
 - repo: https://github.com/pre-commit/mirrors-mypy
   rev: v1.17.1
-  hooks: [{id: mypy, args: [--ignore-missing-imports, --no-warn-unused-ignores]}]
+  hooks: [{id: mypy, args: [--ignore-missing-imports, --no-warn-unused-ignores], additional_dependencies: [types-requests]}]
 - repo: https://github.com/PyCQA/bandit
   rev: 1.8.6
   hooks: [{id: bandit, args: [--exclude, tests, --skip, B101]}]
