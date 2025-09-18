@@ -31,7 +31,8 @@ def tmp_thresholds(tmp_path: Path):
 
 def test_load_thresholds(tmp_thresholds: Path):
     th = load_thresholds(tmp_thresholds)
-    assert set(th.keys()) == {"t_star", "low", "high", "gray_zone_rate"}  # nosec
+    # nosec
+    assert set(th.keys()) == {"t_star", "low", "high", "gray_zone_rate"}
     assert 0.0 <= th["low"] < th["high"] <= 1.0  # nosec
 
 

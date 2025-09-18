@@ -32,7 +32,11 @@ def test_judge_llm_parsing(monkeypatch):
     )
     req = JudgeRequest(
         url="http://ex.com/login",
-        features=FeatureDigest(url_len=120, url_digit_ratio=0.22, url_subdomains=3),
+        features=FeatureDigest(
+            url_len=120,
+            url_digit_ratio=0.22,
+            url_subdomains=3,
+        ),
     )
     out = judge_url_llm(req)
     assert out.verdict == "LEAN_PHISH"
@@ -67,10 +71,21 @@ def test_gateway_uses_backend_selector(monkeypatch, tmp_path: Path):
         jw,
         "_JUDGE_FN",
         lambda req: types.SimpleNamespace(
-            verdict="LEAN_LEGIT", rationale="mock", judge_score=0.2, context={}
+            verdict="LEAN_LEGIT",
+            rationale="mock",
+            judge_score=0.2,
+            context={},
         ),
     )
+
     # Use the thresholds from the temp file
-    TH = {"t_star": 0.45, "low": 0.30, "high": 0.60, "gray_zone_rate": 0.10}
+    TH = {
+        "t_star": 0.45,
+        "low": 0.30,
+        "high": 0.60,
+        "gray_zone_rate": 0.10,
+    }
     res = jw.decide_with_judge("http://foo/login", 0.45, TH)
-    assert res.final_decision in {"ALLOW", "REVIEW", "BLOCK"}  # wiring didn't crash
+
+    # Wiring didn't crash; decision is mapped
+    assert res.final_decision in {"ALLOW", "REVIEW", "BLOCK"}
