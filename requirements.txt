@@ -487,3 +487,4 @@ zipp==3.23.0
     # via importlib-metadata
 tldextract==5.3.0
     # via posthog
+types-requests==2.28.11
