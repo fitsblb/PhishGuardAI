@@ -5,7 +5,7 @@ import os
 import re
 from typing import Tuple
 
-import requests  # type: ignore
+import requests
 
 from judge_svc.contracts import JudgeRequest, JudgeResponse, JudgeVerdict
 from judge_svc.stub import judge_url as fallback_stub  # fail-open if LLM not available
@@ -30,7 +30,7 @@ def _prompt(req: JudgeRequest) -> str:
         "SCORE: number in [0,1]\n"
         "RATIONALE: brief human explanation\n\n"
         f"URL: {req.url}\n"
-        f"FEATURES_JSON: {json.dumps(feat, separators=(',',':'))}\n"
+        f"FEATURES_JSON: {json.dumps(feat, separators=(',', ':'))}\n"
         "Consider length, digit ratio, subdomains, TLD prior, and any "
         "suspicious tokens in the URL."
     )
