@@ -488,3 +488,4 @@ zipp==3.23.0
 tldextract==5.3.0
     # via posthog
 types-requests==2.28.11
+httpx

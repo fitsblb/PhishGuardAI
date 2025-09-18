@@ -34,7 +34,19 @@ class TestModelServiceIntegration:
         assert result == 0.75
         mock_post.assert_called_once_with(
             "http://localhost:9000/predict",
-            json={"url": "http://example.com"},
+            json={
+                "url": "http://example.com",
+                "extras": {
+                    "TLDLegitimateProb": None,
+                    "NoOfOtherSpecialCharsInURL": None,
+                    "SpacialCharRatioInURL": None,
+                    "CharContinuationRate": None,
+                    "URLCharProb": None,
+                    "url_len": None,
+                    "url_digit_ratio": None,
+                    "url_subdomains": None,
+                },
+            },
             timeout=3.0,
         )
 
