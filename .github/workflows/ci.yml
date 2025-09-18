@@ -1,12 +1,12 @@
 # .github/workflows/ci.yml  — Option A (paused CI for feature/dev)
-name: CI
+name: Tests
 on:
   pull_request:
     branches: ["main"]   # only runs on PRs into main
   workflow_dispatch:      # allow manual runs from Actions tab
 
 jobs:
-  test:
+  Tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
