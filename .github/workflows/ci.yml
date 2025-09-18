@@ -15,11 +15,13 @@ jobs:
           python-version: "3.11"
       - run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          # Skip pywin32 on Linux runners, install everything else
+          grep -v "pywin32" requirements.txt > requirements-linux.txt || cp requirements.txt requirements-linux.txt
+          pip install -r requirements-linux.txt
           pip install pytest pytest-cov black isort flake8 mypy
       - run: |
           black --check .
           isort --check-only .
           flake8 .
           mypy src
-      - run: python -m pytest -q
+      - run: python -m pytest tests/ -q
