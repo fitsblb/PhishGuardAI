@@ -3,33 +3,55 @@ from __future__ import annotations
 import os
 from typing import Any, Dict, Literal, Optional
 
-import requests  # type: ignore
+import requests
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 
 from common.stats import reset, snapshot
-
-# Imports match our editable-install (src-layout) packaging
 from common.thresholds import Thresholds, load_thresholds
 from gateway.judge_wire import decide_with_judge
 
-app = FastAPI(title="PhishGuard Gateway")
-
-# --------- Environment Configuration ---------
-MODEL_SVC_URL = os.getenv("MODEL_SVC_URL")  # e.g., http://127.0.0.1:9000
-
-# --------- thresholds (loaded once at startup) ---------
+# --------- Config ---------
 THRESH_PATH = os.getenv("THRESHOLDS_JSON", "configs/dev/thresholds.json")
-try:
-    TH: Thresholds = load_thresholds(THRESH_PATH)
-except Exception as e:
-    # Fail early and loudly; the service depends on thresholds to make decisions
-    raise RuntimeError(f"Failed to load thresholds from {THRESH_PATH}: {e}")
+MAX_REQ_BYTES = int(os.getenv("MAX_REQ_BYTES", "8192"))  # 8KB default
+CORS_ORIGINS = [
+    s.strip()
+    for s in os.getenv(
+        "GATEWAY_CORS_ORIGINS", "http://localhost,http://127.0.0.1"
+    ).split(",")
+    if s.strip()
+]
+
+# --------- App & middleware ---------
+app = FastAPI(title="PhishGuard Gateway", version="0.1.0")
 
 
-# --------- request/response models ---------
+class ContentSizeLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        cl = request.headers.get("content-length")
+        if cl and cl.isdigit() and int(cl) > MAX_REQ_BYTES:
+            return JSONResponse({"detail": "Request body too large"}, status_code=413)
+        return await call_next(request)
+
+
+app.add_middleware(ContentSizeLimitMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["POST", "GET", "OPTIONS"],
+    allow_headers=["*"],
+)
+
+# --------- thresholds (load once) ---------
+TH: Thresholds = load_thresholds(THRESH_PATH)
+
+
+# --------- Models ---------
 class ExtrasIn(BaseModel):
-    # Optional URL-only features to pass to the judge (all optional for convenience)
     TLDLegitimateProb: Optional[float] = Field(None, ge=0.0, le=1.0)
     NoOfOtherSpecialCharsInURL: Optional[int] = Field(None, ge=0)
     SpacialCharRatioInURL: Optional[float] = Field(None, ge=0.0, le=1.0)
@@ -38,10 +60,10 @@ class ExtrasIn(BaseModel):
 
 
 class PredictIn(BaseModel):
-    url: str = Field(..., min_length=3)
-    # If provided, we’ll trust this probability from the model service (P(phish))
+    # Guard extremes: realistic upper bound; empty/whitespace rejected
+    # by min_length & stripping on client
+    url: str = Field(min_length=3, max_length=2048)
     p_malicious: Optional[float] = Field(None, ge=0.0, le=1.0)
-    # Optional extras passed to judge (only used if policy says REVIEW)
     extras: Optional[ExtrasIn] = None
 
 
@@ -52,10 +74,10 @@ class PredictOut(BaseModel):
     reason: str
     thresholds: Dict[str, float]
     judge: Optional[Dict[str, Any]] = None
-    source: Literal["model", "heuristic"]  # where p_malicious came from
+    source: Literal["model", "heuristic"]
 
 
-# --------- tiny deterministic URL feature helpers (match training utils) ---------
+# --------- tiny deterministic URL helpers (fallback heuristic) ---------
 def _url_len(s: str) -> int:
     return len(s) if isinstance(s, str) else 0
 
@@ -75,12 +97,7 @@ def _subdomain_count(s: str) -> int:
 
 
 def _heuristic_pmal(url: str) -> float:
-    """
-    Fallback ONLY for local demos when p_malicious is not provided.
-    This is NOT your trained model — just a transparent, bounded heuristic.
-    """
     risk = 0.0
-    # length
     L = _url_len(url)
     if L >= 160:
         risk += 0.50
@@ -88,7 +105,6 @@ def _heuristic_pmal(url: str) -> float:
         risk += 0.35
     elif L >= 80:
         risk += 0.20
-    # digits
     dr = _digit_ratio(url)
     if dr >= 0.30:
         risk += 0.35
@@ -96,47 +112,47 @@ def _heuristic_pmal(url: str) -> float:
         risk += 0.20
     elif dr >= 0.10:
         risk += 0.10
-    # subdomains
     sd = _subdomain_count(url)
     if sd >= 4:
         risk += 0.20
     elif sd >= 3:
         risk += 0.10
-    # light token check
     url_l = url.lower()
     if any(tok in url_l for tok in ["login", "verify", "update", "secure", "account"]):
         risk += 0.10
     return max(0.0, min(1.0, risk))
 
 
-def _call_model_service(
-    url: str, extras: dict | None, timeout: float = 3.0
-) -> float | None:
-    """Return p_malicious from the model service or None on any error."""
-    model_svc_url = os.getenv("MODEL_SVC_URL")  # Read at runtime for testability
-    if not model_svc_url:
+def _call_model_service(url: str, extras: Dict[str, Any]) -> Optional[float]:
+    """
+    Call the model service to get p_malicious prediction.
+    Returns None if service unavailable or on error.
+    """
+    model_url = os.environ.get("MODEL_SVC_URL")
+    if not model_url:
         return None
+
     try:
-        r = requests.post(
-            f"{model_svc_url.rstrip('/')}/predict",
-            json={"url": url},  # Model service only expects url
-            timeout=timeout,
-        )
-        r.raise_for_status()
-        data = r.json()
-        p = float(data.get("p_malicious", 0.0))
-        if 0.0 <= p <= 1.0:
-            return p
-        return None
+        response = requests.post(f"{model_url}/predict", json={"url": url}, timeout=3.0)
+        response.raise_for_status()
+        data = response.json()
+        p_malicious = data.get("p_malicious")
+
+        # Validate probability is in valid range [0.0, 1.0]
+        if p_malicious is None or not isinstance(p_malicious, (int, float)):
+            return None
+        if not (0.0 <= p_malicious <= 1.0):
+            return None
+
+        return float(p_malicious)
     except Exception:
         return None
 
 
-# --------- routes ---------
+# --------- Routes ---------
 @app.get("/health")
 def health():
-    # Later: add readiness checks (e.g., downstream pings)
-    return {"status": "ok", "service": "gateway", "version": "0.0.1"}
+    return {"status": "ok", "service": "gateway", "version": app.version}
 
 
 @app.get("/config")
@@ -146,12 +162,21 @@ def config():
 
 @app.post("/predict", response_model=PredictOut)
 def predict(payload: PredictIn):
-    # choose p_malicious (prefer caller; else model service; else heuristic)
+    # choose p_malicious (client-provided/model service/heuristic
+    # handled upstream in our existing wiring)
     extras = payload.extras.model_dump() if payload.extras else {}
+    # prefer client/model; fallback heuristic
+    # (gateway-call-model branch already added model call)
+    try:
+        # if present from earlier branch
+        from gateway.main import _call_model_service
+    except Exception:
+        _call_model_service = None
+
     if payload.p_malicious is not None:
         p_mal = float(payload.p_malicious)
-        src = "model"
-    else:
+        src: Literal["model", "heuristic"] = "model"
+    elif _call_model_service:
         p_from_svc = _call_model_service(payload.url, extras)
         if p_from_svc is not None:
             p_mal = p_from_svc
@@ -159,10 +184,11 @@ def predict(payload: PredictIn):
         else:
             p_mal = _heuristic_pmal(payload.url)
             src = "heuristic"
+    else:
+        p_mal = _heuristic_pmal(payload.url)
+        src = "heuristic"
 
-    # 2) policy band → maybe judge → final decision
     outcome = decide_with_judge(payload.url, p_mal, TH, extras=extras)
-
     return PredictOut(
         url=payload.url,
         p_malicious=p_mal,
@@ -181,7 +207,6 @@ def predict(payload: PredictIn):
 
 @app.get("/stats")
 def stats():
-    """Get observability statistics for decisions and judge verdicts."""
     return snapshot()
 
 
