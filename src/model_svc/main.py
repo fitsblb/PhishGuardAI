@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="PhishGuard Model Service", version="0.0.1")
+app = FastAPI(title="PhishGuard Model Service", version="0.1.0")
 
 # BRANCH: feature/model-artifact-freeze
 # --- Model artifact paths ---
@@ -172,7 +172,7 @@ def health():
     return {
         "status": "ok",
         "service": "model-svc",
-        "version": "0.0.1",
+        "version": "0.1.0",
         "has_model": has_model,
     }
 
