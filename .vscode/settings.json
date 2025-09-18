@@ -1,0 +1,22 @@
+{
+  "python.defaultInterpreterPath": "./venv/python.exe",
+  "terminal.integrated.shellIntegration.enabled": true,
+  "terminal.integrated.defaultProfile.windows": "Command Prompt",
+  "terminal.integrated.profiles.windows": {
+    "Command Prompt": {
+      "path": [
+        "${env:windir}\\Sysnative\\cmd.exe",
+        "${env:windir}\\System32\\cmd.exe"
+      ],
+      "args": ["/k", "conda activate venv/"],
+      "icon": "terminal-cmd"
+    },
+    "PowerShell": {
+      "source": "PowerShell",
+      "icon": "terminal-powershell",
+      "args": ["-NoExit", "-Command", "conda activate venv/"]
+    }
+  },
+  "python.terminal.activateEnvironment": false,
+  "python.terminal.activateEnvInCurrentTerminal": false
+}
