@@ -1,0 +1,73 @@
+{
+  "dataset": {
+    "total_rows": 235370,
+    "unique_urls": 235370,
+    "phishing": 100520,
+    "legitimate": 134850,
+    "class_balance": {
+      "phishing": "42.7%",
+      "legitimate": "57.3%"
+    }
+  },
+  "url_only_features": {
+    "total": 24,
+    "tier1_must_have": [
+      "IsHTTPS",
+      "TLDLegitimateProb",
+      "CharContinuationRate",
+      "SpacialCharRatioInURL"
+    ],
+    "tier2_strong": [
+      "URLCharProb",
+      "LetterRatioInURL"
+    ],
+    "tier3_moderate": [
+      "NoOfOtherSpecialCharsInURL",
+      "DomainLength"
+    ],
+    "tier4_weak": [
+      "NoOfLettersInURL",
+      "URLLength",
+      "HasObfuscation",
+      "Pay",
+      "Bank",
+      "ObfuscationRatio",
+      "NoOfObfuscatedChar",
+      "NoOfAmpersandInURL",
+      "NoOfQMarkInURL",
+      "NoOfEqualsInURL",
+      "DegitRatioInURL",
+      "NoOfDegitsInURL",
+      "NoOfSubDomain",
+      "TLDLength",
+      "IsDomainIP",
+      "Crypto"
+    ]
+  },
+  "current_selection": {
+    "features": [
+      "URLLength",
+      "DegitRatioInURL",
+      "NoOfSubDomain",
+      "NoOfOtherSpecialCharsInURL",
+      "SpacialCharRatioInURL",
+      "CharContinuationRate",
+      "URLCharProb",
+      "TLDLegitimateProb"
+    ],
+    "tier1_count": 3,
+    "tier2_count": 1,
+    "tier3_count": 1,
+    "tier4_count": 3
+  },
+  "recommended_selection": [
+    "IsHTTPS",
+    "TLDLegitimateProb",
+    "CharContinuationRate",
+    "SpacialCharRatioInURL",
+    "URLCharProb",
+    "LetterRatioInURL",
+    "NoOfOtherSpecialCharsInURL",
+    "DomainLength"
+  ]
+}
