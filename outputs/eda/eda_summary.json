@@ -44,30 +44,24 @@
       "Crypto"
     ]
   },
-  "current_selection": {
+  "optimal_selection": {
     "features": [
-      "URLLength",
-      "DegitRatioInURL",
-      "NoOfSubDomain",
-      "NoOfOtherSpecialCharsInURL",
-      "SpacialCharRatioInURL",
+      "IsHTTPS",
+      "TLDLegitimateProb",
       "CharContinuationRate",
+      "SpacialCharRatioInURL",
       "URLCharProb",
-      "TLDLegitimateProb"
+      "LetterRatioInURL",
+      "NoOfOtherSpecialCharsInURL",
+      "DomainLength"
     ],
-    "tier1_count": 3,
-    "tier2_count": 1,
-    "tier3_count": 1,
-    "tier4_count": 3
+    "tier1_count": 4,
+    "tier2_count": 2,
+    "tier3_count": 2,
+    "tier4_count": 0
   },
-  "recommended_selection": [
-    "IsHTTPS",
-    "TLDLegitimateProb",
-    "CharContinuationRate",
-    "SpacialCharRatioInURL",
-    "URLCharProb",
-    "LetterRatioInURL",
-    "NoOfOtherSpecialCharsInURL",
-    "DomainLength"
-  ]
+  "data_leakage_findings": {
+    "Domain": "Excluded due to memorization risk (1.07 URLs per domain, only 54 domains in both classes)",
+    "TLD": "Used numeric proxy TLDLegitimateProb to avoid 695-feature explosion"
+  }
 }
