@@ -1,13 +1,13 @@
 {
   "feature_order": [
-    "url_len",
-    "url_digit_ratio",
-    "url_subdomains",
-    "NoOfOtherSpecialCharsInURL",
-    "SpacialCharRatioInURL",
+    "IsHTTPS",
+    "TLDLegitimateProb",
     "CharContinuationRate",
+    "SpacialCharRatioInURL",
     "URLCharProb",
-    "TLDLegitimateProb"
+    "LetterRatioInURL",
+    "NoOfOtherSpecialCharsInURL",
+    "DomainLength"
   ],
   "class_mapping": {
     "phish": 0,
@@ -15,5 +15,8 @@
   },
   "phish_proba_col_index": 0,
   "model_type": "CalibratedClassifierCV",
-  "notes": "URL-only baseline; calibrated; saved for model_svc."
+  "calibration": "isotonic_cv5",
+  "training_date": "2025-10-11T12:33:20.464558",
+  "seed": 42,
+  "notes": "URL-only baseline with optimal 8 features from EDA"
 }

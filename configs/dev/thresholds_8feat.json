@@ -1,0 +1,28 @@
+{
+  "model": "xgb_8feat",
+  "features": [
+    "IsHTTPS",
+    "TLDLegitimateProb",
+    "CharContinuationRate",
+    "SpacialCharRatioInURL",
+    "URLCharProb",
+    "LetterRatioInURL",
+    "NoOfOtherSpecialCharsInURL",
+    "DomainLength"
+  ],
+  "class_mapping": {
+    "phish": 0,
+    "legit": 1
+  },
+  "calibration": {
+    "method": "isotonic",
+    "cv": 5
+  },
+  "thresholds": {
+    "t_star": 0.39999999999999997,
+    "low": 0.0034851074218749667,
+    "high": 0.7965148925781249,
+    "gray_zone_rate": 0.12159578535922165
+  },
+  "seed": 42
+}

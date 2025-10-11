@@ -1,40 +1,68 @@
-# Deep EDA Investigation Log
-**Branch:** `feature/deep-eda-investigation`  
-**Date:** [Today's Date]  
-**Goal:** Thoroughly explore PhiUSIIL dataset to identify truly URL-only features and justify feature selection
+# Exploratory Data Analysis Report: Phishing URL Detection
+
+**Project Branch:** `feature/deep-eda-investigation`  
+**Date:** October 10, 2025  
+**Objective:** Conduct comprehensive exploratory data analysis on the PhiUSIIL dataset to identify optimal URL-only features for phishing detection and justify feature selection decisions.
 
 ---
 
-## Session 1: Initial Dataset Inspection
+## Executive Summary
 
-### Dataset Overview
+This report documents the exploratory data analysis (EDA) performed on the PhiUSIIL Phishing URL Dataset. The analysis focused on data quality assessment, feature evaluation, and selection of URL-only features to ensure reliable, high-performance phishing detection without requiring webpage content access.
+
+**Key Outcomes:**
+
+- Dataset cleaned: 235,370 unique URLs after removing duplicates.
+- Feature set optimized: 8 URL-only features selected based on separation analysis and correlation checks.
+- Categorical features evaluated: TLD retained via numeric encoding; Domain excluded due to cardinality and bias issues.
+
+---
+
+## Methodology
+
+The EDA followed a systematic approach:
+
+1. **Data Inspection:** Verified data integrity, class balance, and feature availability.
+2. **Duplicate Removal:** Identified and removed URL duplicates to prevent data leakage.
+3. **Feature Categorization:** Classified features into URL-only vs. page-content categories.
+4. **Separation Analysis:** Computed effect sizes to rank feature discriminative power.
+5. **Correlation Analysis:** Assessed redundancy among numeric features.
+6. **Categorical Evaluation:** Analyzed TLD and Domain for inclusion feasibility.
+7. **Feature Selection:** Prioritized top-performing features balancing performance and interpretability.
+
+---
+
+## Dataset Overview
+
 - **Rows:** 235,795 URLs
 - **Columns:** 54 features + 1 label
 - **Missing values:** 0 (excellent data quality)
-- **Class balance:** 57.2% legit (134,850) vs 42.8% phish (100,945)
+- **Class balance:** 57.2% legitimate (134,850) vs 42.8% phishing (100,945)
 
 ### Key Observations
 
 #### 1. Feature Duplication Found
+
 The dataset already contains:
+
 - `URLLength` (but we compute `url_len`)
-- `NoOfSubDomain` (but we compute `url_subdomains`)  
+- `NoOfSubDomain` (but we compute `url_subdomains`)
 - `DegitRatioInURL` (similar to our `url_digit_ratio`)
 
-
-
 #### 2. TLD Diversity
+
 - **695 unique TLDs** - shows real-world variety
 - Common ones likely: `.com`, `.net`, `.org`
 - Suspicious ones likely: `.tk`, `.ml`, `.ga` (free domains)
 
 #### 3. Feature Categories (Revised)
-| Category | Count | Examples |
-|----------|-------|----------|
-| URL Structure | 26 | URLLength, Domain, TLD, NoOfSubDomain |
-| URL Characters | 4 | CharContinuationRate, HasObfuscation |
-| Page Content | 16 | LineOfCode, HasTitle, NoOfImage, NoOfSelfRef |
-| Behavioral | 9 | Bank, Pay, Crypto, HasPasswordField |
+
+| Category      | Count | Examples                                      |
+|---------------|-------|-----------------------------------------------|
+| URL Structure | 26    | URLLength, Domain, TLD, NoOfSubDomain         |
+| URL Characters| 4     | CharContinuationRate, HasObfuscation          |
+| Page Content  | 16    | LineOfCode, HasTitle, NoOfImage, NoOfSelfRef  |
+| Behavioral    | 9     | Bank, Pay, Crypto, HasPasswordField           |
 
 ---
 
@@ -234,26 +262,77 @@ Missing: `IsHTTPS` (strongest predictor)
 
 ---
 
-## Key Takeaways (Interview-Ready)
+---
+
+## Session 7: Categorical Feature Analysis
+
+### TLD and Domain Evaluation
+
+This section examines the categorical features TLD and Domain to assess their suitability for inclusion in the feature set.
+
+#### TLD Analysis
+
+Key findings from TLD distribution analysis:
+
+1. **High-Risk TLDs (phishing rate > 80%)**
+
+   - `.top`: 99.9% phishing (2,325 out of 2,327 URLs)
+   - `.dev`: 98.6% phishing (2,289 out of 2,322)
+   - `.app`: 97.8% phishing (6,327 out of 6,467)
+   - `.co`: 91.5% phishing (4,950 out of 5,408)
+   - `.io`: 89.7% phishing (3,742 out of 4,174)
+
+   These five TLDs account for 19,633 phishing URLs, representing a significant portion of malicious activity.
+
+2. **TLDLegitimateProb Validation**
+
+   Comparison of actual phishing rates with TLDLegitimateProb scores:
+
+   - `.app`: Actual phishing rate 97.8% | TLDLegitimateProb: 0.002 (accurately identifies as high-risk)
+   - `.co`: Actual phishing rate 91.5% | TLDLegitimateProb: 0.006 (accurately identifies as high-risk)
+   - `.org`: Actual phishing rate 12.1% | TLDLegitimateProb: 0.080 (accurately identifies as low-risk)
+   - `.edu`: Actual phishing rate 0.3% | TLDLegitimateProb: High (expected for legitimate TLD)
+
+   **Conclusion**: TLDLegitimateProb effectively captures TLD-based risk, providing a numeric feature with strong discriminative power (separation score: 2.012). It serves as an efficient encoding of TLD reputation.
+
+#### Domain Analysis
+
+Analysis of the Domain feature reveals several limitations:
+
+- **High Cardinality**: 220,086 unique domains across 235,370 URLs, resulting in an average of 1.07 URLs per domain. One-hot encoding would generate 220,000 features, most of which would be sparse and ineffective.
+
+- **Limited Generalization**: Only 54 domains (0.025%) appear in both phishing and legitimate classes, indicating poor overlap. Models trained on this would primarily memorize specific domains rather than learn generalizable patterns.
+
+- **Data Collection Bias**: Prominent domains such as `docs.google.com` and `s3.amazonaws.com` exhibit 100% phishing rates due to the dataset capturing only abusive instances, not legitimate usage. This introduces significant bias and potential for overfitting.
+
+**Recommendation**: Exclude the Domain feature due to its specificity, high cardinality, and associated risks of data leakage and poor generalization. Focus on TLD-level features for domain-related insights.
+
+---
+
+## Conclusions
 
 ### 1. Why URL-Only Features?
+
 - **Speed:** 5-10ms prediction (no HTTP fetch)
 - **Reliability:** No dependency on site availability or anti-scraping
 - **Compliance:** Passive analysis, no interaction with suspect sites
 - **Simplicity:** 8 numeric features, easy to validate and monitor
 
 ### 2. Feature Engineering Philosophy
+
 - Started with 25 URL-only candidates
 - Ranked by separation score (discriminative power)
 - Removed highly correlated pairs (avoid redundancy)
 - Selected top 8 balancing performance and interpretability
 
 ### 3. Data Quality Steps
+
 - Removed 425 duplicates (0.18%) to prevent train/test leakage
 - Validated feature consistency (URLLength discrepancy found and documented)
 - Confirmed zero missing values
 
 ### 4. Trade-offs Acknowledged
+
 - Excluded page-content features (HTMLLineOfCode, NoOfImages) for speed
 - Accepted moderate correlation between SpacialCharRatio and CharContinuationRate
 - Prioritized interpretability over complex feature interactions
@@ -263,10 +342,12 @@ Missing: `IsHTTPS` (strongest predictor)
 ## Artifacts Generated
 
 ### Visualizations
+
 - `outputs/eda/all_url_only_features_distribution.png` - Feature distributions by class
 - `outputs/eda/url_features_correlation_heatmap.png` - Correlation matrix
 
 ### Data Files
+
 - `data/processed/phiusiil_clean_deduped.csv` - Cleaned, deduplicated dataset
 - `outputs/eda/feature_separation_scores.csv` - Separation analysis for all features
 - `outputs/eda/feature_correlations.csv` - Correlation matrix
@@ -292,30 +373,22 @@ Missing: `IsHTTPS` (strongest predictor)
 
 ---
 
-## Appendix: Feature Definitions
+## Final Decision: Feature Set LockedFeature Definitions
 
-**IsHTTPS:** Binary flag for HTTPS protocol (1) vs HTTP (0)
+**IsHTTPS:** Binary flag for HTTPS protocol (1) vs HTTP (0)  (separation: 2.829)
 
-**TLDLegitimateProb:** Probability that TLD (.com, .org, etc.) is used by legitimate sites (lookup table)
+**TLDLegitimateProb:** Probability that TLD (.com, .org, etc.) is used by legitimate sites (lookup table)(separation: 2.012)
 
-**CharContinuationRate:** Measure of character repetition (aaaaa, 11111)
+**CharContinuationRate:** Measure of character repetition (aaaaa, 11111) (separation: 1.372)
 
-**SpacialCharRatioInURL:** Ratio of special characters (-, _, @, etc.) to total length
+**SpacialCharRatioInURL:** Ratio of special characters (-, _, @, etc.) to total length (separation: 1.330)
 
-**URLCharProb:** Character distribution entropy (randomness score)
+**URLCharProb:** Character distribution entropy (randomness score) (separation: 0.889)
 
-**LetterRatioInURL:** Ratio of letters to total length
+**LetterRatioInURL:** Ratio of letters to total length  (separation: 0.825)
 
-**NoOfOtherSpecialCharsInURL:** Count of special characters (excluding ?, =, &)
+**NoOfOtherSpecialCharsInURL:** Count of special characters (excluding ?, =, &)  (separation: 0.562)
 
 **DomainLength:** Length of domain name (e.g., "paypal.com" = 10)
-""".format(date=pd.Timestamp.now().strftime("%Y-%m-%d"))
+""".format(date=pd.Timestamp.now().strftime("%Y-%m-%d")) (separation: 0.324)
 
-with open('docs/EDA_INVESTIGATION.md', 'w', encoding='utf-8') as f:
-    f.write(eda_doc_content)
-
-print("="*60)
-print("UPDATED: docs/EDA_INVESTIGATION.md")
-print("="*60)
-print("\nDocumentation complete. Ready to commit EDA work.")
-print("\nNext: Create 01_feature_engineering.ipynb")
