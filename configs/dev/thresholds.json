@@ -9,13 +9,13 @@
     "cv": 5
   },
   "thresholds": {
-    "t_star": 0.44999999999999996,
-    "low": 0.14999999999999997,
-    "high": 0.75,
-    "gray_zone_rate": 0.14232909886561584
+    "t_star": 0.39999999999999997,
+    "low": 0.0034851074218749667,
+    "high": 0.7965148925781249,
+    "gray_zone_rate": 0.12159578535922165
   },
   "data": {
-    "file": "data\\processed\\phiusiil_clean_urlfeats.csv"
+    "file": "data\\processed\\phiusiil_final_features.csv"
   },
   "seed": 42
 }

@@ -1,0 +1,27 @@
+{
+  "model": "xgb_7feat",
+  "features": [
+    "TLDLegitimateProb",
+    "CharContinuationRate",
+    "SpacialCharRatioInURL",
+    "URLCharProb",
+    "LetterRatioInURL",
+    "NoOfOtherSpecialCharsInURL",
+    "DomainLength"
+  ],
+  "class_mapping": {
+    "phish": 0,
+    "legit": 1
+  },
+  "calibration": {
+    "method": "isotonic",
+    "cv": 5
+  },
+  "thresholds": {
+    "t_star": 0.6,
+    "low": 0.20019200015244676,
+    "high": 0.9998079998475532,
+    "gray_zone_rate": 0.09376726005863109
+  },
+  "seed": 42
+}
