@@ -285,16 +285,16 @@ def _zero_features(include_https: bool) -> Dict[str, Union[int, float]]:
     """
     features = {
         "TLDLegitimateProb": 0.5,  # Neutral default
-        "CharContinuationRate": 0.0,
-        "SpacialCharRatioInURL": 0.0,
-        "URLCharProb": 0.05,  # Safe default
-        "LetterRatioInURL": 0.0,
-        "NoOfOtherSpecialCharsInURL": 0,
-        "DomainLength": 0,
+        "CharContinuationRate": 0.6,
+        "SpacialCharRatioInURL": 0.25,
+        "URLCharProb": 0.02,  # Safe default
+        "LetterRatioInURL": 0.3,
+        "NoOfOtherSpecialCharsInURL": 15,
+        "DomainLength": 60,
     }
 
     if include_https:
-        features["IsHTTPS"] = 0.0
+        features["IsHTTPS"] = 0
 
     return features
 
