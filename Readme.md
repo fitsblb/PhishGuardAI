@@ -261,3 +261,29 @@ curl -X POST http://127.0.0.1:8000/predict \
   -d '{"url":"http://ex.com/login?acct=12345","p_malicious":0.45}'
 curl http://127.0.0.1:8000/stats
 ```
+
+---
+### Latest aditions will organize
+---
+## Model Performance
+
+**Validation Metrics (PhiUSIIL Dataset):**
+- PR-AUC (phishing detection): **99.92%**
+- F1-Macro: **99.70%**
+- Brier Score: **0.0026**
+- False Positive Rate: **0.09%** (23/26,970 legitimate URLs)
+
+**Feature Set (8 features):**
+- IsHTTPS, TLDLegitimateProb, CharContinuationRate
+- SpacialCharRatioInURL, URLCharProb, LetterRatioInURL
+- NoOfOtherSpecialCharsInURL, DomainLength
+
+**Threshold Policy:**
+- Low threshold: 0.004 → ALLOW (below this)
+- High threshold: 0.999 → BLOCK (above this)
+- Gray zone: 10.9% → REVIEW (escalate to judge)
+
+**Known Limitations:**
+- Model trained on PhiUSIIL dataset (2019-2020 URLs)
+- Major tech companies (google.com, github.com) are out-of-distribution
+- Whitelist override implemented for known legitimate short domains
