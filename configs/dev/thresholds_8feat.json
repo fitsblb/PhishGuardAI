@@ -19,10 +19,16 @@
     "cv": 5
   },
   "thresholds": {
-    "t_star": 0.35,
-    "low": 0.003442382812499978,
-    "high": 0.6965576171875,
-    "gray_zone_rate": 0.1190978212254808
+    "optimal_threshold": 0.35,
+    "gray_zone_low": 0.004,
+    "gray_zone_high": 0.9990000000000006,
+    "gray_zone_rate": 0.10936468383276894,
+    "f1_score_at_optimal": 0.002766509680600472,
+    "decision_distribution": {
+      "allow_rate": 0.48099162992780015,
+      "review_rate": 0.10936468383276894,
+      "block_rate": 0.4096436862394309
+    }
   },
   "seed": 42
 }

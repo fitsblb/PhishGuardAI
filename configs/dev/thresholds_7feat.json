@@ -18,10 +18,11 @@
     "cv": 5
   },
   "thresholds": {
-    "t_star": 0.49999999999999994,
-    "low": 0.0048828124999999445,
-    "high": 0.9951171875,
-    "gray_zone_rate": 0.11805422443720316
+    "optimal_threshold": 0.46999999999999986,
+    "gray_zone_low": 0.011,
+    "gray_zone_high": 0.9980000000000003,
+    "gray_zone_rate": 0.11994973697101356,
+    "f1_score_at_optimal": 0.9940051502619371
   },
   "seed": 42
 }
