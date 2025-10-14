@@ -1,0 +1,21 @@
+{
+  "model": "xgb",
+  "class_mapping": {
+    "phish": 0,
+    "legit": 1
+  },
+  "calibration": {
+    "method": "isotonic",
+    "cv": 5
+  },
+  "thresholds": {
+    "t_star": 0.44999999999999996,
+    "low": 0.0031005859374999556,
+    "high": 0.8968994140625,
+    "gray_zone_rate": 0.12178697370098143
+  },
+  "data": {
+    "file": "data\\processed\\phiusiil_features_v2.csv"
+  },
+  "seed": 42
+}
