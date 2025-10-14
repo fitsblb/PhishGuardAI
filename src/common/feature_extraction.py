@@ -265,12 +265,7 @@ def _calc_url_char_prob(url: str) -> float:
     common_count = sum(1 for c in url if c in common_chars)
     score = common_count / len(url)
 
-    # Normalize to roughly match training distribution (mean ~0.055)
-    # Training data showed URLCharProb has mean 0.055, std 0.010
-    # Our score is in [0,1], so scale down
-    normalized = score * 0.06  # Scale to [0, 0.06] range
-
-    return normalized
+    return score
 
 
 def _zero_features(include_https: bool) -> Dict[str, Union[int, float]]:
@@ -283,14 +278,21 @@ def _zero_features(include_https: bool) -> Dict[str, Union[int, float]]:
     Returns:
         Dict with all features set to 0 or safe defaults
     """
+    """
+    SECURITY: Return SUSPICIOUS features for error cases.
+
+    Rationale: If we can't parse a URL, treat it as suspicious.
+    This is a fail-secure design - better to block a broken URL
+    than allow a potentially malicious one.
+    """
     features = {
-        "TLDLegitimateProb": 0.5,  # Neutral default
-        "CharContinuationRate": 0.6,
-        "SpacialCharRatioInURL": 0.25,
-        "URLCharProb": 0.02,  # Safe default
-        "LetterRatioInURL": 0.3,
-        "NoOfOtherSpecialCharsInURL": 15,
-        "DomainLength": 60,
+        "TLDLegitimateProb": 0.05,  # Very suspicious TLD
+        "CharContinuationRate": 0.6,  # High repetition (suspicious)
+        "SpacialCharRatioInURL": 0.25,  # Many special chars
+        "URLCharProb": 0.02,  # Very unusual characters (vs normal ~1.0)
+        "LetterRatioInURL": 0.3,  # Low letter ratio
+        "NoOfOtherSpecialCharsInURL": 15,  # Many special chars
+        "DomainLength": 60,  # Very long domain
     }
 
     if include_https:

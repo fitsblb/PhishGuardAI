@@ -1,0 +1,31 @@
+# Code block 2 — configs/dev/config.yaml (minimal, extensible)
+project:
+  name: NetworkSecurity2
+  seed: 42
+data:
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  train_split: "time_aware"  # options: time_aware|random (for experimental comparison)
+  text_fields: ["subject", "body"]
+  label_field: "target"      # values: phish|ham
+features:
+  traditional: ["url_num_links", "body_length", "has_bank_terms"]
+  embeddings:
+    provider: "sentence-transformers"
+    model: "all-MiniLM-L6-v2"
+model:
+  type: "xgboost"            # baseline: lr|svm|xgboost
+  calibration: "isotonic"    # platt|isotonic|none
+thresholds:
+  low: 0.20                  # auto-allow below
+  high: 0.80                 # auto-block above
+judge:
+  provider: "ollama"
+  model: "llama3:8b"
+  max_tokens: 256
+eval:
+  primary_metrics: ["f1_macro", "pr_auc"]
+  slice_columns: ["sender_domain", "language"]
+paths:
+  mlruns: "mlruns"
+  ge_context: "great_expectations"

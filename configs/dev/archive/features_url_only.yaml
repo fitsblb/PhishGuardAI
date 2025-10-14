@@ -1,0 +1,26 @@
+
+
+include:
+  - url_len
+  - url_digit_ratio
+  - url_subdomains
+  - NoOfOtherSpecialCharsInURL
+  - SpacialCharRatioInURL
+  - CharContinuationRate
+  - URLCharProb
+  - TLDLegitimateProb
+
+exclude:
+  - URLSimilarityIndex
+  - URLTitleMatchScore
+  - LineOfCode
+  - LargestLineLength
+  - NoOfExternalRef
+  - NoOfImage
+  - NoOfJS
+  - NoOfSelfRef
+  - NoOfCSS
+
+notes:
+  policy: "URL-only baseline; no HTML/DOM fetches"
+  tld_raw: "exclude raw TLD for now; may add curated one-hot later"

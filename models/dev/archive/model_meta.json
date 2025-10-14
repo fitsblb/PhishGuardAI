@@ -1,0 +1,19 @@
+{
+  "feature_order": [
+    "url_len",
+    "url_digit_ratio",
+    "url_subdomains",
+    "NoOfOtherSpecialCharsInURL",
+    "SpacialCharRatioInURL",
+    "CharContinuationRate",
+    "URLCharProb",
+    "TLDLegitimateProb"
+  ],
+  "class_mapping": {
+    "phish": 0,
+    "legit": 1
+  },
+  "phish_proba_col_index": 0,
+  "model_type": "CalibratedClassifierCV",
+  "notes": "URL-only baseline; calibrated; saved for model_svc."
+}
