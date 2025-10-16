@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhishGuard - URL Explainability Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 900px;
+            width: 100%;
+            padding: 40px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+        
+        input[type="text"] {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        button {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            display: none;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .results {
+            display: none;
+        }
+        
+        .prediction-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .prediction-card.safe {
+            background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%);
+        }
+        
+        .prediction-card.suspicious {
+            background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+        }
+        
+        .prediction-card.dangerous {
+            background: linear-gradient(135deg, #ff7675 0%, #d63031 100%);
+            color: white;
+        }
+        
+        .prediction-label {
+            font-size: 14px;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-bottom: 5px;
+            opacity: 0.8;
+        }
+        
+        .prediction-value {
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .prediction-status {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .feature-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .feature-item:last-child {
+            border-bottom: none;
+        }
+        
+        .feature-name {
+            flex: 0 0 200px;
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .feature-bar-container {
+            flex: 1;
+            height: 30px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .feature-bar {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            font-size: 12px;
+            font-weight: 600;
+            color: white;
+        }
+        
+        .feature-bar.positive {
+            background: linear-gradient(90deg, #ff7675 0%, #d63031 100%);
+        }
+        
+        .feature-bar.negative {
+            background: linear-gradient(90deg, #00b894 0%, #00cec9 100%);
+        }
+        
+        .feature-value {
+            flex: 0 0 100px;
+            text-align: right;
+            font-size: 14px;
+            color: #666;
+            padding-left: 10px;
+        }
+        
+        .error {
+            background: #ff7675;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .feature-values {
+            margin-top: 30px;
+        }
+        
+        .value-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .value-item {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 3px solid #667eea;
+        }
+        
+        .value-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .value-data {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ PhishGuard Explainability Dashboard</h1>
+        <p class="subtitle">Enter a URL to analyze and see why it was classified as safe or malicious</p>
+        
+        <div class="input-group">
+            <input type="text" id="urlInput" placeholder="Enter URL (e.g., https://example.com)" />
+            <button id="analyzeBtn" onclick="analyzeURL()">Analyze</button>
+        </div>
+        
+        <div class="error" id="errorMsg"></div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Analyzing URL and computing feature contributions...</p>
+        </div>
+        
+        <div class="results" id="results">
+            <div class="prediction-card" id="predictionCard">
+                <div class="prediction-label">Malicious Probability</div>
+                <div class="prediction-value" id="predictionValue">--</div>
+                <div class="prediction-status" id="predictionStatus">--</div>
+            </div>
+            
+            <div class="section-title">🎯 Feature Contributions (SHAP Values)</div>
+            <p style="color: #666; margin-bottom: 20px; font-size: 14px;">
+                Features in <span style="color: #d63031; font-weight: 600;">red</span> increase phishing risk, 
+                while features in <span style="color: #00b894; font-weight: 600;">green</span> decrease it.
+            </p>
+            <div id="shapValues"></div>
+            
+            <div class="feature-values">
+                <div class="section-title">📊 Extracted Feature Values</div>
+                <div class="value-grid" id="featureValues"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Configuration - update these to match your deployment
+        const API_BASE_URL = 'http://localhost:8080';  // Gateway URL
+        
+        async function analyzeURL() {
+            const urlInput = document.getElementById('urlInput');
+            const url = urlInput.value.trim();
+            
+            if (!url) {
+                showError('Please enter a URL');
+                return;
+            }
+            
+            // Reset UI
+            hideError();
+            hideResults();
+            showLoading();
+            
+            try {
+                // Call the gateway's /predict endpoint with explain=true
+                const response = await fetch(`${API_BASE_URL}/predict`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API returned ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                // Now call the explain endpoint
+                const explainResponse = await fetch(`${API_BASE_URL}/predict/explain`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+                
+                if (!explainResponse.ok) {
+                    throw new Error(`Explain API returned ${explainResponse.status}`);
+                }
+                
+                const explainData = await explainResponse.json();
+                
+                hideLoading();
+                displayResults(explainData);
+                
+            } catch (error) {
+                hideLoading();
+                showError(`Error: ${error.message}`);
+            }
+        }
+        
+        function displayResults(data) {
+            const resultsDiv = document.getElementById('results');
+            const predictionCard = document.getElementById('predictionCard');
+            const predictionValue = document.getElementById('predictionValue');
+            const predictionStatus = document.getElementById('predictionStatus');
+            const shapValuesDiv = document.getElementById('shapValues');
+            const featureValuesDiv = document.getElementById('featureValues');
+            
+            // Display prediction
+            const pMalicious = data.p_malicious;
+            const percentage = (pMalicious * 100).toFixed(1);
+            predictionValue.textContent = `${percentage}%`;
+            
+            // Set status and color
+            if (pMalicious < 0.3) {
+                predictionStatus.textContent = '✅ Safe';
+                predictionCard.className = 'prediction-card safe';
+            } else if (pMalicious < 0.7) {
+                predictionStatus.textContent = '⚠️ Suspicious';
+                predictionCard.className = 'prediction-card suspicious';
+            } else {
+                predictionStatus.textContent = '🚨 Dangerous';
+                predictionCard.className = 'prediction-card dangerous';
+            }
+            
+            // Display SHAP values
+            shapValuesDiv.innerHTML = '';
+            if (data.feature_contributions && Object.keys(data.feature_contributions).length > 0) {
+                const contributions = data.feature_contributions;
+                
+                // Sort by absolute value (most important first)
+                const sortedFeatures = Object.entries(contributions)
+                    .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+                
+                // Find max absolute value for scaling
+                const maxAbs = Math.max(...sortedFeatures.map(([_, val]) => Math.abs(val)));
+                
+                sortedFeatures.forEach(([feature, value]) => {
+                    const featureItem = document.createElement('div');
+                    featureItem.className = 'feature-item';
+                    
+                    const featureName = document.createElement('div');
+                    featureName.className = 'feature-name';
+                    featureName.textContent = feature;
+                    
+                    const barContainer = document.createElement('div');
+                    barContainer.className = 'feature-bar-container';
+                    
+                    const bar = document.createElement('div');
+                    bar.className = `feature-bar ${value >= 0 ? 'positive' : 'negative'}`;
+                    const width = (Math.abs(value) / maxAbs) * 100;
+                    bar.style.width = `${width}%`;
+                    bar.textContent = value >= 0 ? '→ Increases risk' : '→ Decreases risk';
+                    
+                    const featureValue = document.createElement('div');
+                    featureValue.className = 'feature-value';
+                    featureValue.textContent = value.toFixed(4);
+                    
+                    barContainer.appendChild(bar);
+                    featureItem.appendChild(featureName);
+                    featureItem.appendChild(barContainer);
+                    featureItem.appendChild(featureValue);
+                    shapValuesDiv.appendChild(featureItem);
+                });
+            } else {
+                shapValuesDiv.innerHTML = '<p style="color: #666; text-align: center;">No feature contributions available (whitelist match)</p>';
+            }
+            
+            // Display feature values
+            featureValuesDiv.innerHTML = '';
+            if (data.feature_values && Object.keys(data.feature_values).length > 0) {
+                Object.entries(data.feature_values).forEach(([feature, value]) => {
+                    const valueItem = document.createElement('div');
+                    valueItem.className = 'value-item';
+                    
+                    const label = document.createElement('div');
+                    label.className = 'value-label';
+                    label.textContent = feature;
+                    
+                    const valueData = document.createElement('div');
+                    valueData.className = 'value-data';
+                    valueData.textContent = typeof value === 'number' ? value.toFixed(4) : value;
+                    
+                    valueItem.appendChild(label);
+                    valueItem.appendChild(valueData);
+                    featureValuesDiv.appendChild(valueItem);
+                });
+            }
+            
+            resultsDiv.style.display = 'block';
+        }
+        
+        function showError(message) {
+            const errorMsg = document.getElementById('errorMsg');
+            errorMsg.textContent = message;
+            errorMsg.style.display = 'block';
+        }
+        
+        function hideError() {
+            document.getElementById('errorMsg').style.display = 'none';
+        }
+        
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('analyzeBtn').disabled = true;
+        }
+        
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('analyzeBtn').disabled = false;
+        }
+        
+        function hideResults() {
+            document.getElementById('results').style.display = 'none';
+        }
+        
+        // Allow Enter key to trigger analysis
+        document.getElementById('urlInput').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                analyzeURL();
+            }
+        });
+    </script>
+</body>
+</html>

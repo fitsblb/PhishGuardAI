@@ -33,6 +33,16 @@ def test_judge_llm_parsing(monkeypatch):
     req = JudgeRequest(
         url="http://ex.com/login",
         features=FeatureDigest(
+            # 8-feature model (required fields)
+            IsHTTPS=0,
+            TLDLegitimateProb=0.15,  # low legitimacy
+            CharContinuationRate=0.30,
+            SpacialCharRatioInURL=0.20,
+            URLCharProb=0.25,  # low probability
+            LetterRatioInURL=0.60,
+            NoOfOtherSpecialCharsInURL=3,
+            DomainLength=7,  # short domain
+            # Legacy features (optional)
             url_len=120,
             url_digit_ratio=0.22,
             url_subdomains=3,

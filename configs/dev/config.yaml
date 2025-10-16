@@ -1,42 +1,54 @@
+# ============================================================
 # PhishGuard Configuration - Development Environment
-# This file specifies which models to load and how to configure services
+# ============================================================
 
+# Model Service Configuration
 model_service:
-  # Primary model - used for actual predictions/decisions
+  # Primary model (production)
   primary:
-    path: "models/dev/model_7feat.pkl"
-    meta_path: "models/dev/model_7feat_meta.json"
-    name: "7-feature-production"
-    description: "URL-only model without IsHTTPS, robust to 2025 HTTPS phishing"
-  
-  # Shadow model - runs in parallel for A/B testing (optional)
-  shadow:
-    enabled: true  # Set to false to disable shadow testing
     path: "models/dev/model_8feat.pkl"
     meta_path: "models/dev/model_8feat_meta.json"
-    name: "8-feature-research"
-    description: "URL-only model with IsHTTPS for comparison"
-
-gateway:
-  # Thresholds must match the primary model
-  thresholds_path: "configs/dev/thresholds_7feat.json"
+    name: "8-feature-production-v1"
+    description: "8-feature URL model with IsHTTPS (PR-AUC: 99.92%)"
   
-  # Policy band configuration
-  # These values can be overridden by the thresholds file
-  default_thresholds:
-    low: 0.20   # Auto-ALLOW below this
-    high: 1.00  # Auto-BLOCK at/above this
-    t_star: 0.60  # F1-optimal threshold
+  # Shadow model (DISABLED for production)
+  shadow:
+    enabled: false
+    path: "models/dev/model_7feat.pkl"
+    meta_path: "models/dev/model_7feat_meta.json"
+    name: "7-feature-baseline"
+    description: "7-feature URL model without IsHTTPS (research only)"
+    log_path: "outputs/shadow_predictions.jsonl"
 
-# Feature extraction configuration
+# Gateway Configuration
+gateway:
+  # Thresholds file (tuned on 8-feature model)
+  thresholds_path: "configs/dev/thresholds.json"
+  
+  # Default thresholds (fallback if file load fails)
+  default_thresholds:
+    low: 0.004      # Auto-ALLOW below this (99.6% safe URLs)
+    high: 0.999     # Auto-BLOCK at/above this (99.5% phishing)
+    t_star: 0.350   # F1-optimal threshold
+    gray_zone_rate: 0.109  # ~11% escalated to judge
+
+# Feature Extraction Configuration
 features:
-  # TLD probability lookup table
+  # TLD legitimacy lookup table (695 TLDs)
   tld_probs_path: "data/tld_probs.json"
   
-  # Fail-secure behavior when feature extraction fails
-  fail_secure: true  # If true, return suspicious features on error
+  # Bayesian priors for TLD scoring
+  tld_alpha: 1
+  tld_beta: 2
+  
+  # Minimum samples for TLD reliability
+  min_samples: 10
+  
+  # Fail-secure: return suspicious features on extraction errors
+  fail_secure: true
 
-# Logging configuration
+# Logging Configuration
 logging:
   level: "INFO"
-  shadow_logging: true  # Log shadow model predictions for analysis
+  shadow_logging: false
+  audit_enabled: false

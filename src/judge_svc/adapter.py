@@ -20,19 +20,28 @@ _RAT_RE = re.compile(r"\bRATIONALE\s*:\s*(.+)", re.I | re.S)
 
 
 def _prompt(req: JudgeRequest) -> str:
-    # Compact, deterministic prompt; instruct to emit explicit fields we can parse.
+    # Enhanced prompt for 8-feature model with detailed feature descriptions
     feat = req.features.model_dump()
     return (
-        "You are a security analyst. Assess phishing risk from the URL and "
-        "compact URL-only features.\n"
-        "Respond with EXACTLY three fields on separate lines:\n"
+        "You are a cybersecurity analyst specializing in phishing detection. "
+        "Assess phishing risk using the URL and 8 sophisticated features:\n\n"
+        "KEY FEATURES TO ANALYZE:\n"
+        "- IsHTTPS: HTTPS usage (0=HTTP, 1=HTTPS)\n"
+        "- TLDLegitimateProb: Bayesian TLD legitimacy probability [0,1]\n"
+        "- CharContinuationRate: Character repetition patterns [0,1]\n"
+        "- SpacialCharRatioInURL: Special character density [0,1]\n"
+        "- URLCharProb: URL character sequence probability [0,1]\n"
+        "- LetterRatioInURL: Alphabetic character ratio [0,1]\n"
+        "- NoOfOtherSpecialCharsInURL: Count of special characters\n"
+        "- DomainLength: RFC-compliant domain length\n\n"
+        "RESPOND WITH EXACTLY THREE FIELDS:\n"
         "VERDICT: LEAN_PHISH | LEAN_LEGIT | UNCERTAIN\n"
-        "SCORE: number in [0,1]\n"
-        "RATIONALE: brief human explanation\n\n"
+        "SCORE: risk score in [0,1] where 0=safe, 1=malicious\n"
+        "RATIONALE: brief explanation focusing on key risk indicators\n\n"
         f"URL: {req.url}\n"
-        f"FEATURES_JSON: {json.dumps(feat, separators=(',', ':'))}\n"
-        "Consider length, digit ratio, subdomains, TLD prior, and any "
-        "suspicious tokens in the URL."
+        f"FEATURES: {json.dumps(feat, separators=(',', ':'))}\n\n"
+        "Focus on: HTTPS usage, TLD legitimacy, character patterns, "
+        "and any URL obfuscation techniques."
     )
 
 

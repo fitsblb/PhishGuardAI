@@ -30,6 +30,7 @@ WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 COPY src ./src
 COPY configs ./configs
+COPY data/tld_probs.json ./data/tld_probs.json
 
 EXPOSE 8000
 CMD ["uvicorn", "gateway.main:app", "--host", "0.0.0.0", "--port", "8000"]

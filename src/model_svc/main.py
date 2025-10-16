@@ -14,8 +14,10 @@ from typing import Any, Dict, Optional
 
 import joblib
 import pandas as pd
+import shap
 import yaml  # type: ignore
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 # Import shared feature extraction
@@ -23,6 +25,54 @@ from common.feature_extraction import (
     extract_features,
     validate_features,
 )
+
+# === Known Legitimate Domain Whitelist ===
+# Handles out-of-distribution major tech companies not in PhiUSIIL training data
+KNOWN_LEGITIMATE_DOMAINS = {
+    "google.com",
+    "www.google.com",
+    "github.com",
+    "www.github.com",
+    "microsoft.com",
+    "www.microsoft.com",
+    "amazon.com",
+    "www.amazon.com",
+    "apple.com",
+    "www.apple.com",
+    "facebook.com",
+    "www.facebook.com",
+    "twitter.com",
+    "www.twitter.com",
+    "linkedin.com",
+    "www.linkedin.com",
+    "youtube.com",
+    "www.youtube.com",
+    "wikipedia.org",
+    "www.wikipedia.org",
+    "stackoverflow.com",
+    "www.stackoverflow.com",
+    "netflix.com",
+    "www.netflix.com",
+    "paypal.com",
+    "www.paypal.com",
+}
+
+
+def _check_whitelist(url: str) -> bool:
+    """Check if URL is on known legitimate domain whitelist."""
+    try:
+        from urllib.parse import urlparse
+
+        domain = urlparse(url).netloc.lower()
+        # Strip www. for comparison
+        domain_no_www = domain.replace("www.", "")
+        return (
+            domain in KNOWN_LEGITIMATE_DOMAINS
+            or domain_no_www in KNOWN_LEGITIMATE_DOMAINS
+        )
+    except Exception:
+        return False
+
 
 # Configure logging with more detail
 logging.basicConfig(
@@ -49,32 +99,40 @@ MODEL_CONFIG = CONFIG.get("model_service", {})
 PRIMARY_CONFIG = MODEL_CONFIG.get("primary", {})
 SHADOW_CONFIG = MODEL_CONFIG.get("shadow", {})
 
-# Environment variable overrides
+# Environment variable overrides - PRIMARY NOW USES 8-FEATURE MODEL
 PRIMARY_MODEL_PATH = Path(
-    os.getenv("MODEL_PATH", PRIMARY_CONFIG.get("path", "models/dev/model_7feat.pkl"))
+    os.getenv("MODEL_PATH", PRIMARY_CONFIG.get("path", "models/dev/model_8feat.pkl"))
 )
 PRIMARY_META_PATH = Path(
     os.getenv(
         "MODEL_META_PATH",
-        PRIMARY_CONFIG.get("meta_path", "models/dev/model_7feat_meta.json"),
+        PRIMARY_CONFIG.get("meta_path", "models/dev/model_8feat_meta.json"),
     )
 )
 
-SHADOW_ENABLED = (
-    os.getenv("SHADOW_ENABLED", str(SHADOW_CONFIG.get("enabled", True))).lower()
-    == "true"
-)
-SHADOW_MODEL_PATH = Path(
-    os.getenv(
-        "SHADOW_MODEL_PATH", SHADOW_CONFIG.get("path", "models/dev/model_8feat.pkl")
+# Shadow mode disabled for production (Option A: 8-feature primary only)
+SHADOW_ENABLED = os.getenv("SHADOW_ENABLED", "false").lower() == "true"
+
+SHADOW_MODEL_PATH: Optional[Path]
+SHADOW_META_PATH: Optional[Path]
+
+if SHADOW_ENABLED:
+    SHADOW_MODEL_PATH = Path(
+        os.getenv(
+            "SHADOW_MODEL_PATH", SHADOW_CONFIG.get("path", "models/dev/model_7feat.pkl")
+        )
     )
-)
-SHADOW_META_PATH = Path(
-    os.getenv(
-        "SHADOW_META_PATH",
-        SHADOW_CONFIG.get("meta_path", "models/dev/model_8feat_meta.json"),
+    SHADOW_META_PATH = Path(
+        os.getenv(
+            "SHADOW_META_PATH",
+            SHADOW_CONFIG.get("meta_path", "models/dev/model_7feat_meta.json"),
+        )
     )
-)
+    print(f"Shadow mode ENABLED: {SHADOW_MODEL_PATH}")
+else:
+    SHADOW_MODEL_PATH = None
+    SHADOW_META_PATH = None
+    print("Shadow mode DISABLED (production mode)")
 
 # ============================================================
 # GLOBAL MODEL STORAGE
@@ -164,6 +222,8 @@ async def lifespan(app: FastAPI):
 
     # Load shadow model if enabled
     if SHADOW_ENABLED:
+        assert SHADOW_MODEL_PATH is not None
+        assert SHADOW_META_PATH is not None
         _shadow_model, _shadow_meta = load_model_artifact(
             SHADOW_MODEL_PATH, SHADOW_META_PATH
         )
@@ -222,6 +282,20 @@ class PredictResponse(BaseModel):
     shadow: Optional[ShadowPrediction] = Field(
         None, description="Shadow model prediction (if enabled)"
     )
+
+
+class ExplainRequest(BaseModel):
+    url: str = Field(..., min_length=1, max_length=2048, description="URL to explain")
+
+
+class ExplainResponse(BaseModel):
+    p_malicious: float = Field(
+        ..., description="Probability that URL is malicious (0.0-1.0)"
+    )
+    feature_contributions: dict = Field(..., description="SHAP values for each feature")
+    feature_values: dict = Field(..., description="Feature values for the input URL")
+    source: str = Field(..., description="Prediction source: 'model' or 'heuristic'")
+    model_name: Optional[str] = Field(None, description="Primary model identifier")
 
 
 # ============================================================
@@ -392,6 +466,89 @@ def predict_with_model(
 # ============================================================
 # API ENDPOINTS
 # ============================================================
+@app.post("/predict/explain", response_model=ExplainResponse)
+def explain(request: ExplainRequest):
+    """
+    Return SHAP feature contributions for a given URL using the primary model.
+    """
+    url = request.url
+    if _primary_model is None:
+        return JSONResponse(
+            status_code=503, content={"error": "Primary model not loaded"}
+        )
+
+    # Fast path: Check whitelist BEFORE calling model
+    if _check_whitelist(url):
+        return ExplainResponse(
+            p_malicious=0.01,
+            feature_contributions={},
+            feature_values={},
+            source="whitelist",
+            model_name="domain-whitelist",
+        )
+
+    # Extract features
+    try:
+        features_df = engineer_features_for_model(url, _primary_feature_order)
+        # Convert numpy values to Python floats for JSON serialization
+        feature_values = {k: float(v) for k, v in dict(features_df.iloc[0]).items()}
+    except Exception as e:
+        return JSONResponse(
+            status_code=400, content={"error": f"Feature extraction failed: {e}"}
+        )
+
+    # Compute prediction
+    try:
+        p_malicious = float(
+            _primary_model.predict_proba(features_df)[0][_primary_phish_col_ix]
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500, content={"error": f"Model prediction failed: {e}"}
+        )
+
+    # SHAP explainability
+    try:
+        # For CalibratedClassifierCV, we need to access the base estimator
+        # Try TreeExplainer first (for XGBoost), fallback to KernelExplainer
+        try:
+            # Access the base estimator from CalibratedClassifierCV
+            base_estimator = _primary_model.calibrated_classifiers_[0].estimator
+            explainer = shap.TreeExplainer(base_estimator)
+            shap_values = explainer.shap_values(features_df)
+            # For binary classification, shap_values might be a list [neg, pos]
+            if isinstance(shap_values, list):
+                shap_values = shap_values[_primary_phish_col_ix]
+            # Convert numpy values to Python floats for JSON serialization
+            contributions = {
+                k: float(v) for k, v in zip(features_df.columns, shap_values[0])
+            }
+        except Exception as tree_err:
+            logger.warning(f"TreeExplainer failed: {tree_err}, trying KernelExplainer")
+
+            # Fallback to KernelExplainer (slower but more general)
+            def model_predict(X):
+                return _primary_model.predict_proba(X)[:, _primary_phish_col_ix]
+
+            explainer = shap.KernelExplainer(model_predict, features_df)
+            shap_values = explainer.shap_values(features_df)
+            # Convert numpy values to Python floats for JSON serialization
+            contributions = {
+                k: float(v) for k, v in zip(features_df.columns, shap_values[0])
+            }
+    except Exception as e:
+        logger.error(f"SHAP explainability failed: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500, content={"error": f"SHAP explainability failed: {str(e)}"}
+        )
+
+    return ExplainResponse(
+        p_malicious=p_malicious,
+        feature_contributions=contributions,
+        feature_values=feature_values,
+        source="model",
+        model_name=PRIMARY_CONFIG.get("name", "primary"),
+    )
 
 
 @app.get("/health")
@@ -426,6 +583,16 @@ def predict(request: PredictRequest):
     """
     Predict phishing probability with extensive debug logging.
     """
+    # Fast path: Check whitelist BEFORE calling model
+    if _check_whitelist(request.url):
+        logger.info(f"✓ WHITELIST HIT: {request.url} - bypassing model prediction")
+        return PredictResponse(
+            p_malicious=0.01,
+            source="whitelist",
+            model_name="domain-whitelist",
+            shadow=None,
+        )
+
     url = request.url
 
     logger.info(f"\n\n{'#' * 60}")
@@ -448,7 +615,7 @@ def predict(request: PredictRequest):
                 url,
                 _primary_feature_order,
                 _primary_phish_col_ix,
-                model_name="PRIMARY (7-feature)",
+                model_name="PRIMARY (8-feature)",
             )
             source = "model"
             model_name_primary = PRIMARY_CONFIG.get("name", "primary")
@@ -475,6 +642,7 @@ def predict(request: PredictRequest):
 
     shadow_result = None
 
+    # Shadow model (only if enabled)
     if SHADOW_ENABLED and _shadow_model is not None and source == "model":
         try:
             p_malicious_shadow = predict_with_model(
@@ -482,8 +650,11 @@ def predict(request: PredictRequest):
                 url,
                 _shadow_feature_order,
                 _shadow_phish_col_ix,
-                model_name="SHADOW (8-feature)",
+                model_name="SHADOW (7-feature)",
             )
+
+            # Log shadow prediction details
+            logger.info(f"Shadow prediction: {p_malicious_shadow:.6f}")
 
             agreement = abs(p_malicious_primary - p_malicious_shadow) < 0.1
 
@@ -502,6 +673,7 @@ def predict(request: PredictRequest):
             )
 
         except Exception as e:
+            logger.warning(f"Shadow prediction failed: {e}")
             logger.error(f"\n✗ SHADOW MODEL FAILED: {e}", exc_info=True)
 
     # ========================================

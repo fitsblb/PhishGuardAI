@@ -10,42 +10,83 @@ def _risk_tokens(url: str) -> int:
 
 def judge_url(req: JudgeRequest) -> JudgeResponse:
     f = req.features
-    # Simple, explainable rules:
+    # Enhanced heuristics using 8-feature model:
     risk = 0.0
     reasons = []
 
-    # long URL
-    if f.url_len >= 120:
-        risk += 0.35
-        reasons.append("very long URL")
-    elif f.url_len >= 80:
-        risk += 0.20
-        reasons.append("long URL")
+    # HTTPS check (security baseline)
+    if f.IsHTTPS == 0:
+        risk += 0.15
+        reasons.append("HTTP (not HTTPS)")
 
-    # many digits
-    if f.url_digit_ratio >= 0.25:
-        risk += 0.35
-        reasons.append("high digit ratio")
-    elif f.url_digit_ratio >= 0.15:
-        risk += 0.20
-        reasons.append("elevated digit ratio")
+    # TLD legitimacy (Bayesian prior)
+    if f.TLDLegitimateProb < 0.10:
+        risk += 0.30
+        reasons.append("very low TLD legitimacy")
+    elif f.TLDLegitimateProb < 0.30:
+        risk += 0.15
+        reasons.append("low TLD legitimacy")
 
-    # many subdomains
-    if f.url_subdomains >= 4:
-        risk += 0.20
-        reasons.append("many subdomains")
-    elif f.url_subdomains >= 3:
+    # Character patterns (obfuscation indicators)
+    if f.CharContinuationRate > 0.80:
+        risk += 0.25
+        reasons.append("high character repetition")
+    elif f.CharContinuationRate > 0.60:
         risk += 0.10
-        reasons.append("multiple subdomains")
+        reasons.append("elevated character repetition")
 
-    # low TLD legitimacy prior (if provided)
-    if f.TLDLegitimateProb is not None:
-        if f.TLDLegitimateProb < 0.10:
-            risk += 0.25
-            reasons.append("low TLD legitimacy")
-        elif f.TLDLegitimateProb < 0.25:
-            risk += 0.10
-            reasons.append("moderate TLD legitimacy")
+    # Special character ratio (obfuscation)
+    if f.SpacialCharRatioInURL > 0.25:
+        risk += 0.25
+        reasons.append("high special character ratio")
+    elif f.SpacialCharRatioInURL > 0.15:
+        risk += 0.15
+        reasons.append("elevated special character ratio")
+
+    # URL character probability (language model signal)
+    if f.URLCharProb < 0.30:
+        risk += 0.20
+        reasons.append("low URL character probability")
+    elif f.URLCharProb < 0.50:
+        risk += 0.10
+        reasons.append("moderate URL character probability")
+
+    # Letter ratio (readability)
+    if f.LetterRatioInURL < 0.40:
+        risk += 0.15
+        reasons.append("low letter ratio")
+
+    # Special characters count (complexity)
+    if f.NoOfOtherSpecialCharsInURL > 8:
+        risk += 0.20
+        reasons.append("many special characters")
+    elif f.NoOfOtherSpecialCharsInURL > 5:
+        risk += 0.10
+        reasons.append("elevated special characters")
+
+    # Domain length (suspiciously long domains)
+    if f.DomainLength > 50:
+        risk += 0.25
+        reasons.append("very long domain")
+    elif f.DomainLength > 30:
+        risk += 0.10
+        reasons.append("long domain")
+
+    # Legacy features fallback (if available)
+    if hasattr(f, "url_len") and f.url_len is not None:
+        if f.url_len >= 120:
+            risk += 0.10  # Lower weight since we have better features
+            reasons.append("very long URL")
+
+    if hasattr(f, "url_digit_ratio") and f.url_digit_ratio is not None:
+        if f.url_digit_ratio >= 0.25:
+            risk += 0.10  # Lower weight since we have better features
+            reasons.append("high digit ratio")
+
+    if hasattr(f, "url_subdomains") and f.url_subdomains is not None:
+        if f.url_subdomains >= 4:
+            risk += 0.10  # Lower weight since we have better features
+            reasons.append("many subdomains")
 
     # suspicious tokens
     rt = _risk_tokens(req.url)
@@ -75,9 +116,18 @@ def judge_url(req: JudgeRequest) -> JudgeResponse:
         rationale=rationale,
         judge_score=risk,
         context={
-            "url_len": f.url_len,
-            "url_digit_ratio": f.url_digit_ratio,
-            "url_subdomains": f.url_subdomains,
+            # 8-feature model context
+            "IsHTTPS": f.IsHTTPS,
             "TLDLegitimateProb": f.TLDLegitimateProb,
+            "CharContinuationRate": f.CharContinuationRate,
+            "SpacialCharRatioInURL": f.SpacialCharRatioInURL,
+            "URLCharProb": f.URLCharProb,
+            "LetterRatioInURL": f.LetterRatioInURL,
+            "NoOfOtherSpecialCharsInURL": f.NoOfOtherSpecialCharsInURL,
+            "DomainLength": f.DomainLength,
+            # Legacy context (if available)
+            "url_len": getattr(f, "url_len", None),
+            "url_digit_ratio": getattr(f, "url_digit_ratio", None),
+            "url_subdomains": getattr(f, "url_subdomains", None),
         },
     )

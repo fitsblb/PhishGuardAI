@@ -1,4 +1,22 @@
 # pyproject.toml
+[project]
+name = "phishguard"
+version = "0.2.0"
+description = "PhishGuard AI - URL phishing detection system"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "pydantic>=2",
+    "scikit-learn",
+    "xgboost",
+    "numpy",
+    "pandas",
+    "joblib",
+    "pyyaml",
+    "tldextract",
+]
+
 [tool.black]
 line-length = 88
 
