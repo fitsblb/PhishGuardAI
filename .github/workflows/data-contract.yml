@@ -12,13 +12,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -U pip pandas numpy
-      - name: Run data contract check (if file exists)
+      - run: pip install -U pip pandas numpy great-expectations
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$PYTHONPATH:$(pwd)/src:$(pwd)" >> $GITHUB_ENV
+      - name: Run data contract check (8-feature model)
         shell: bash
         run: |
-          CSV="data/processed/phiusiil_clean_urlfeats.csv"
-          if [ -f "$CSV" ]; then
-            python scripts/ge_check.py --csv "$CSV"
+          # Check for 8-feature model data (current)
+          CSV_V2="data/processed/phiusiil_features_v2.csv"
+          # Legacy fallback
+          CSV_LEGACY="data/processed/phiusiil_clean_urlfeats.csv"
+
+          if [ -f "$CSV_V2" ]; then
+            echo "Found 8-feature model data: $CSV_V2"
+            python scripts/ge_check.py --csv "$CSV_V2"
+          elif [ -f "$CSV_LEGACY" ]; then
+            echo "Found legacy data: $CSV_LEGACY"
+            python scripts/ge_check.py --csv "$CSV_LEGACY"
           else
-            echo "No processed CSV found ($CSV); skipping."
+            echo "No processed CSV found. Checked: $CSV_V2, $CSV_LEGACY"
+            echo "Skipping data contract validation."
           fi

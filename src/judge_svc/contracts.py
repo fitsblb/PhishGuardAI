@@ -6,16 +6,36 @@ JudgeVerdict = Literal["LEAN_LEGIT", "LEAN_PHISH", "UNCERTAIN"]
 
 
 class FeatureDigest(BaseModel):
-    # compact, URL-only signals we pass to the judge
-    url_len: int = Field(..., ge=0)
-    url_digit_ratio: float = Field(..., ge=0.0, le=1.0)
-    url_subdomains: int = Field(..., ge=0)
-    TLDLegitimateProb: Optional[float] = Field(None, ge=0.0, le=1.0)
-    # optional extras (keep small and explicit)
-    NoOfOtherSpecialCharsInURL: Optional[int] = Field(None, ge=0)
-    SpacialCharRatioInURL: Optional[float] = Field(None, ge=0.0, le=1.0)
-    CharContinuationRate: Optional[float] = Field(None, ge=0.0, le=1.0)
-    URLCharProb: Optional[float] = Field(None, ge=0.0, le=1.0)
+    # 8-feature model (production features - required)
+    IsHTTPS: int = Field(..., ge=0, le=1, description="Binary HTTPS indicator")
+    TLDLegitimateProb: float = Field(
+        ..., ge=0.0, le=1.0, description="Bayesian TLD legitimacy probability"
+    )
+    CharContinuationRate: float = Field(
+        ..., ge=0.0, le=1.0, description="Character continuation pattern rate"
+    )
+    SpacialCharRatioInURL: float = Field(
+        ..., ge=0.0, le=1.0, description="Special character ratio"
+    )
+    URLCharProb: float = Field(
+        ..., ge=0.0, le=1.0, description="URL character probability"
+    )
+    LetterRatioInURL: float = Field(
+        ..., ge=0.0, le=1.0, description="Letter ratio in URL"
+    )
+    NoOfOtherSpecialCharsInURL: int = Field(
+        ..., ge=0, description="Count of other special characters"
+    )
+    DomainLength: int = Field(..., ge=0, description="RFC-compliant domain length")
+
+    # Legacy features (optional for backward compatibility)
+    url_len: Optional[int] = Field(None, ge=0, description="Legacy: total URL length")
+    url_digit_ratio: Optional[float] = Field(
+        None, ge=0.0, le=1.0, description="Legacy: digit ratio"
+    )
+    url_subdomains: Optional[int] = Field(
+        None, ge=0, description="Legacy: subdomain count"
+    )
 
 
 class JudgeRequest(BaseModel):

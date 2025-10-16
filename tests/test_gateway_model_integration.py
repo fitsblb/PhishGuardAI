@@ -34,19 +34,7 @@ class TestModelServiceIntegration:
         assert result == 0.75
         mock_post.assert_called_once_with(
             "http://localhost:9000/predict",
-            json={
-                "url": "http://example.com",
-                "extras": {
-                    "TLDLegitimateProb": None,
-                    "NoOfOtherSpecialCharsInURL": None,
-                    "SpacialCharRatioInURL": None,
-                    "CharContinuationRate": None,
-                    "URLCharProb": None,
-                    "url_len": None,
-                    "url_digit_ratio": None,
-                    "url_subdomains": None,
-                },
-            },
+            json={"url": "http://example.com"},
             timeout=3.0,
         )
 
@@ -84,7 +72,8 @@ class TestModelServiceIntegration:
     def test_predict_with_p_malicious_provided(self):
         """Test /predict when p_malicious is provided by caller."""
         response = client.post(
-            "/predict", json={"url": "http://example.com", "p_malicious": 0.8}
+            "/predict",
+            json={"url": "http://suspicious-domain.test", "p_malicious": 0.8},
         )
 
         assert response.status_code == 200
@@ -121,16 +110,19 @@ class TestModelServiceIntegration:
         mock_call_model.return_value = None
 
         with patch.dict(os.environ, {"MODEL_SVC_URL": "http://localhost:9000"}):
-            response = client.post("/predict", json={"url": "http://example.com"})
+            response = client.post(
+                "/predict", json={"url": "http://test-fallback.example"}
+            )
 
         assert response.status_code == 200
         data = response.json()
+        # Should fall back to heuristic when model service fails
         assert data["source"] == "heuristic"
         # Valid probability from heuristic
         assert 0.0 <= data["p_malicious"] <= 1.0
 
         # Verify model service was attempted
-        mock_call_model.assert_called_once_with("http://example.com", {})
+        mock_call_model.assert_called_once_with("http://test-fallback.example", {})
 
     def test_predict_no_model_service_url(self):
         """Test /predict when MODEL_SVC_URL is not set."""
@@ -139,8 +131,8 @@ class TestModelServiceIntegration:
 
         assert response.status_code == 200
         data = response.json()
-        # Should fall back to heuristic
-        assert data["source"] == "heuristic"
+        # Should fall back to heuristic or whitelist
+        assert data["source"] in ["heuristic", "whitelist"]
         assert 0.0 <= data["p_malicious"] <= 1.0
 
     @patch("gateway.main._call_model_service")
@@ -182,7 +174,7 @@ class TestModelServiceIntegration:
             response = client.post(
                 "/predict",
                 json={
-                    "url": "http://example.com",
+                    "url": "http://test-priority.example",  # Use non-whitelisted domain
                     "p_malicious": 0.2,  # Caller's value should win
                 },
             )

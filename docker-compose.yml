@@ -5,7 +5,13 @@ services:
       dockerfile: docker/model.Dockerfile
     ports: ["8002:8002"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')",
+        ]
       interval: 10s
       timeout: 3s
       retries: 10
@@ -22,7 +28,13 @@ services:
       - THRESHOLDS_JSON=configs/dev/thresholds.json
       - JUDGE_BACKEND=stub
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
       interval: 10s
       timeout: 3s
       retries: 10

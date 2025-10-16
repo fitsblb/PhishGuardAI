@@ -3,9 +3,16 @@ venv/
 
 # Python cache
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.pyc
+*.pyo
+
+# Pytest cache
+.pytest_cache/
+**/.pytest_cache/
 
 # Package build artifacts
 *.egg-info/
@@ -40,7 +47,22 @@ mlruns/
 outputs/*.png
 outputs/*.csv
 
-
+# MLflow database
 mlflow.db
+
+# Great Expectations cache
+gx/uncommitted/
+
+# Temporary test files
+test_shap_locally.py
+model_logs.txt
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Coverage reports
+.coverage
+htmlcov/
+*.cover
 
 
