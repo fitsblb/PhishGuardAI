@@ -65,6 +65,4 @@ model_logs.txt
 htmlcov/
 *.cover
 
-docs/*.md
-
 
