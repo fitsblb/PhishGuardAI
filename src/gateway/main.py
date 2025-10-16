@@ -14,6 +14,61 @@ from common.stats import reset, snapshot
 from common.thresholds import Thresholds, load_thresholds
 from gateway.judge_wire import decide_with_judge
 
+# ===================================================================
+# WHITELIST: Known legitimate domains (handles OOD major tech sites)
+# ===================================================================
+KNOWN_LEGITIMATE_DOMAINS = {
+    "google.com",
+    "www.google.com",
+    "github.com",
+    "example.com",
+    "www.example.com",
+    "openai.com",
+    "www.openai.com",
+    "www.github.com",
+    "microsoft.com",
+    "www.microsoft.com",
+    "amazon.com",
+    "www.amazon.com",
+    "apple.com",
+    "www.apple.com",
+    "facebook.com",
+    "www.facebook.com",
+    "twitter.com",
+    "www.twitter.com",
+    "linkedin.com",
+    "www.linkedin.com",
+    "youtube.com",
+    "www.youtube.com",
+    "wikipedia.org",
+    "www.wikipedia.org",
+    "stackoverflow.com",
+    "www.stackoverflow.com",
+    "netflix.com",
+    "www.netflix.com",
+    "paypal.com",
+    "www.paypal.com",
+    "ebay.com",
+    "www.ebay.com",
+}
+
+
+def _check_whitelist(url: str) -> bool:
+    """Check if URL is on known legitimate domain whitelist."""
+    try:
+        from urllib.parse import urlparse
+
+        domain = urlparse(url).netloc.lower()
+        # Strip www. prefix for comparison
+        domain_no_www = domain.replace("www.", "")
+        return (
+            domain in KNOWN_LEGITIMATE_DOMAINS
+            or domain_no_www in KNOWN_LEGITIMATE_DOMAINS
+        )
+    except Exception:
+        return False
+
+
 # List of expected extras keys for normalization
 _EXPECTED_EXTRAS_KEYS = [
     "TLDLegitimateProb",
@@ -97,7 +152,7 @@ class PredictOut(BaseModel):
     reason: str
     thresholds: Dict[str, float]
     judge: Optional[Dict[str, Any]] = None
-    source: Literal["model", "heuristic"]
+    source: Literal["model", "heuristic", "whitelist"]
 
 
 # --------- tiny deterministic URL helpers (fallback heuristic) ---------
@@ -152,24 +207,34 @@ def _call_model_service(url: str, extras: Dict[str, Any]) -> Optional[float]:
     Returns None if service unavailable or on error.
     """
     model_url = os.environ.get("MODEL_SVC_URL")
+    print(f"[DEBUG] MODEL_SVC_URL: {model_url}")  # Debug
     if not model_url:
+        print("[DEBUG] No MODEL_SVC_URL set")  # Debug
         return None
 
     try:
-        payload = {"url": url, "extras": _normalize_extras(extras)}
+        # Use model service API schema: {"url": "..."}
+        payload = {"url": url}
+        print(f"[DEBUG] Calling {model_url}/predict with payload: {payload}")  # Debug
         response = requests.post(f"{model_url}/predict", json=payload, timeout=3.0)
+        print(f"[DEBUG] Response status: {response.status_code}")  # Debug
         response.raise_for_status()
         data = response.json()
+        print(f"[DEBUG] Response data: {data}")  # Debug
         p_malicious = data.get("p_malicious")
 
         # Validate probability is in valid range [0.0, 1.0]
         if p_malicious is None or not isinstance(p_malicious, (int, float)):
+            print(f"[DEBUG] Invalid p_malicious: {p_malicious}")  # Debug
             return None
         if not (0.0 <= p_malicious <= 1.0):
+            print(f"[DEBUG] p_malicious out of range: {p_malicious}")  # Debug
             return None
 
+        print(f"[DEBUG] Model service success: {p_malicious}")  # Debug
         return float(p_malicious)
-    except Exception:
+    except Exception as e:
+        print(f"[DEBUG] Model service error: {e}")  # Debug
         return None
 
 
@@ -186,33 +251,47 @@ def config():
 
 @app.post("/predict", response_model=PredictOut)
 def predict(payload: PredictIn):
-    # choose p_malicious (client-provided/model service/heuristic
-    # handled upstream in our existing wiring)
+    """
+    Main prediction endpoint with whitelist, model service, and heuristic fallback.
+    """
+    # PHASE 1: Fast-path whitelist check
+    if _check_whitelist(payload.url):
+        return PredictOut(
+            url=payload.url,
+            p_malicious=0.01,  # Very low risk for whitelisted domains
+            decision="ALLOW",
+            reason="domain-whitelist",
+            thresholds={
+                "low": TH["low"],
+                "high": TH["high"],
+                "t_star": TH["t_star"],
+                "gray_zone_rate": TH["gray_zone_rate"],
+            },
+            judge=None,
+            source="whitelist",
+        )
+
+    # PHASE 2: Determine p_malicious source
     extras = payload.extras.model_dump() if payload.extras else {}
-    # prefer client/model; fallback heuristic
-    # (gateway-call-model branch already added model call)
-    try:
-        # if present from earlier branch
-        from gateway.main import _call_model_service
-    except Exception:
-        _call_model_service = None
 
     if payload.p_malicious is not None:
+        # Client provided probability
         p_mal = float(payload.p_malicious)
-        src: Literal["model", "heuristic"] = "model"
-    elif _call_model_service:
+        src: Literal["model", "heuristic", "whitelist"] = "model"
+    else:
+        # Try model service first
         p_from_svc = _call_model_service(payload.url, extras)
         if p_from_svc is not None:
             p_mal = p_from_svc
             src = "model"
         else:
+            # Fallback to heuristic
             p_mal = _heuristic_pmal(payload.url)
             src = "heuristic"
-    else:
-        p_mal = _heuristic_pmal(payload.url)
-        src = "heuristic"
 
+    # PHASE 3: Apply business logic and judge
     outcome = decide_with_judge(payload.url, p_mal, TH, extras=extras)
+
     return PredictOut(
         url=payload.url,
         p_malicious=p_mal,
@@ -238,3 +317,56 @@ def stats():
 def stats_reset():
     reset()
     return {"ok": True}
+
+
+# --------- Explainability endpoints ---------
+@app.post("/predict/explain")
+def explain(payload: PredictIn):
+    """
+    Proxy to model service /predict/explain endpoint for SHAP explainability.
+    """
+    model_url = os.environ.get("MODEL_SVC_URL")
+    if not model_url:
+        return JSONResponse(
+            status_code=503, content={"error": "Model service URL not configured"}
+        )
+
+    try:
+        # Forward request to model service
+        response = requests.post(
+            f"{model_url}/predict/explain",
+            json={"url": payload.url},
+            timeout=10.0,  # SHAP computation can take longer
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        return JSONResponse(
+            status_code=503, content={"error": f"Model service error: {str(e)}"}
+        )
+
+
+@app.get("/explain")
+def explain_dashboard():
+    """
+    Serve the explainability dashboard HTML page.
+    """
+    import pathlib
+
+    static_dir = pathlib.Path(__file__).parent / "static"
+    html_file = static_dir / "explain.html"
+
+    print(f"[DEBUG] Looking for dashboard at: {html_file.absolute()}")
+    print(f"[DEBUG] File exists: {html_file.exists()}")
+    print(f"[DEBUG] Static dir: {static_dir.absolute()}")
+    print(f"[DEBUG] Static dir exists: {static_dir.exists()}")
+
+    if html_file.exists():
+        from fastapi.responses import FileResponse
+
+        return FileResponse(html_file)
+    else:
+        return JSONResponse(
+            status_code=404,
+            content={"error": f"Dashboard not found at {html_file.absolute()}"},
+        )

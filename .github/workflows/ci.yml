@@ -1,9 +1,9 @@
-# .github/workflows/ci.yml  — Option A (paused CI for feature/dev)
+# .github/workflows/ci.yml — CI/CD for 8-feature PhishGuard project
 name: Tests
 on:
   pull_request:
-    branches: ["main"]   # only runs on PRs into main
-  workflow_dispatch:      # allow manual runs from Actions tab
+    branches: ["main"] # only runs on PRs into main
+  workflow_dispatch: # allow manual runs from Actions tab
 
 jobs:
   Tests:
@@ -13,7 +13,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: |
+      - name: Install dependencies
+        run: |
           python -m pip install --upgrade pip
           # Skip pywin32 on Linux runners, install everything else
           grep -v "pywin32" requirements.txt > requirements-linux.txt || cp requirements.txt requirements-linux.txt
@@ -21,9 +22,11 @@ jobs:
           pip install pytest pytest-cov black isort flake8 mypy
       - name: Set PYTHONPATH
         run: echo "PYTHONPATH=$PYTHONPATH:$(pwd)/src:$(pwd)" >> $GITHUB_ENV
-      - run: |
+      - name: Code quality checks
+        run: |
           black --check .
           isort --check-only .
           flake8 .
           mypy src
-      - run: python -m pytest tests/ -q
+      - name: Run tests
+        run: python -m pytest tests/ -v --tb=short

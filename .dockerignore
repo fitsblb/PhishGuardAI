@@ -2,7 +2,7 @@
 .git
 .venv
 venv
-data
+# data  # REMOVED: Need data/tld_probs.json for 8-feature model
 mlruns
 mlartifacts
 outputs
@@ -30,8 +30,9 @@ mlflow.db
 .bandit
 .flake8
 pytest.ini
-requirements*.txt
+requirements.txt
 requirements.in
+# requirements-docker.txt is needed for Docker builds!
 
 # Environment & Secrets
 .env
