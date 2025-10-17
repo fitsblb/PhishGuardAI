@@ -353,7 +353,17 @@ def explain_dashboard():
     """
     import pathlib
 
-    static_dir = pathlib.Path(__file__).parent / "static"
+    # In Docker, static files are copied to /app/src/gateway/static/
+    # When running locally, they're relative to this file
+    docker_static_dir = pathlib.Path("/app/src/gateway/static")
+    local_static_dir = pathlib.Path(__file__).parent / "static"
+
+    # Prefer Docker location if it exists, otherwise use local
+    if docker_static_dir.exists():
+        static_dir = docker_static_dir
+    else:
+        static_dir = local_static_dir
+
     html_file = static_dir / "explain.html"
 
     print(f"[DEBUG] Looking for dashboard at: {html_file.absolute()}")

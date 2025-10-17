@@ -53,7 +53,7 @@ A complete machine learning operations (ML Ops) system demonstrating the full li
                                               │
                                               ▼
                            ┌──────────────────────────────────────────┐
-                           │      GATEWAY SERVICE (:8000)             │
+                           │   GATEWAY SERVICE (:8080 → :8000)       │
                            │  ┌────────────────────────────────────┐  │
                            │  │  1. Whitelist Check (15 domains)   │  │
                            │  │     ├─ google.com, github.com      │  │
@@ -87,7 +87,7 @@ A complete machine learning operations (ML Ops) system demonstrating the full li
                                               │
                                               ▼
                            ┌──────────────────────────────────────────┐
-                           │         MODEL SERVICE (:9000)            │
+                           │         MODEL SERVICE (:8002)            │
                            │  ┌────────────────────────────────────┐  │
                            │  │  • Feature Extraction (8 features) │  │
                            │  │  • XGBoost Inference               │  │
@@ -854,7 +854,7 @@ suite.expect_column_to_exist("CharContinuationRate")
 
 **Multi-Stage Build:**
 ```dockerfile
-# gateway.Dockerfile  (BRANCH: feature/docker-slim-gateway)
+# gateway.Dockerfile  
 
 # ---- build stage: install runtime deps into a venv ----
 FROM python:3.11-slim AS builder
@@ -1067,69 +1067,107 @@ pip install -e ".[dev]"
 
 ### Running the Services
 
+**Option 1: Using Docker Compose (Recommended)**
+```bash
+# Start all services
+docker compose up -d
+
+# Check service health
+docker ps
+
+# View logs
+docker compose logs -f gateway
+docker compose logs -f model-svc
+```
+
+**Option 2: Running Locally (Development)**
+
 **Terminal 1: Model Service**
 ```bash
-python -m model_svc.main
+python -m src.model_svc.main
 # Wait for: ✓ Model Service Ready
-# Listening on http://localhost:9000
+# Listening on http://localhost:8002
 ```
 
 **Terminal 2: Gateway Service**
 ```bash
 # Windows
-set MODEL_SVC_URL=http://localhost:9000
-# Linux/Mac
-export MODEL_SVC_URL=http://localhost:9000
+set MODEL_SVC_URL=http://localhost:8002
 
-python -m gateway.main
+# Linux/Mac
+export MODEL_SVC_URL=http://localhost:8002
+
+python -m src.gateway.main
 # Listening on http://localhost:8000
 ```
 
 ### Testing the System
 
+**When using Docker (recommended):**
+
 **1. Whitelist Test**
 ```bash
-curl -X POST http://localhost:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://github.com"}'
+curl -X POST http://localhost:8080/predict ^
+  -H "Content-Type: application/json" ^
+  -d "{\"url\":\"https://github.com\"}"
 # → {"decision":"ALLOW","reason":"domain-whitelist","source":"whitelist"}
 ```
 
 **2. Phishing Detection**
 ```bash
-curl -X POST http://localhost:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://phishing.top"}'
+curl -X POST http://localhost:8080/predict ^
+  -H "Content-Type: application/json" ^
+  -d "{\"url\":\"https://phishing.top\"}"
 # → {"p_malicious":1.0,"decision":"BLOCK","reason":"policy-band"}
 ```
 
 **3. Short Domain Routing**
 ```bash
-curl -X POST http://localhost:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://npm.org"}'
+curl -X POST http://localhost:8080/predict ^
+  -H "Content-Type: application/json" ^
+  -d "{\"url\":\"https://npm.org\"}"
 # → {"decision":"ALLOW","reason":"judge-short-domain-lean-legit"}
 ```
 
 **4. SHAP Dashboard**
-Open browser: `http://localhost:8000/explain`
+Open browser: `http://localhost:8080/explain`
 
 **5. Stats Monitoring**
 ```bash
-curl http://localhost:8000/stats
+curl http://localhost:8080/stats
 # → {"policy_decisions":{...},"final_decisions":{...},"judge_verdicts":{...}}
 ```
 
 ### Docker Deployment
 
+#### Using standalone Docker
+
 ```bash
 # Build gateway image
 docker build -f docker/gateway.Dockerfile -t phishguard-gateway:latest .
 
-# Run container
-docker run --rm -p 8000:8000 \
-  -e MODEL_SVC_URL=http://host.docker.internal:9000 \
+# Build model service image
+docker build -f docker/model.Dockerfile -t phishguard-model:latest .
+
+# Run model service first
+docker run -d --name phishguard-model -p 8002:8002 phishguard-model:latest
+
+# Run gateway service
+docker run --rm -p 8080:8000 \
+  -e MODEL_SVC_URL=http://host.docker.internal:8002 \
+  -e THRESHOLDS_JSON=configs/dev/thresholds.json \
+  -e JUDGE_BACKEND=stub \
   phishguard-gateway:latest
+```
+
+#### Using Docker Compose
+
+```bash
+# Build and run all services
+docker compose up -d
+
+# Or build and run specific service
+docker compose up gateway -d
 ```
 
 ---
