@@ -18,5 +18,10 @@
     }
   },
   "python.terminal.activateEnvironment": false,
-  "python.terminal.activateEnvInCurrentTerminal": false
+  "python.terminal.activateEnvInCurrentTerminal": false,
+  "workbench.editorAssociations": {
+    "*.copilotmd": "vscode.markdown.preview.editor",
+    "*.docx": "default",
+    "file:/**/*.csv": "jupyter-data-wrangler"
+  }
 }
