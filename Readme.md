@@ -714,6 +714,74 @@ Final decision: ALLOW
 - **LEAN_PHISH:** Likely phishing → Final decision: BLOCK
 - **UNCERTAIN:** Unclear → Final decision: REVIEW (manual review queue)
 
+
+### How to use the optional LLM (Ollama)
+
+#### STEP 1: Verify Ollama is Running
+```
+# Check if Ollama service is running
+ollama list
+# Should show: llama3.2:1b
+
+# Test Ollama directly
+ollama run llama3.2:1b
+# Try: "Is google.com a phishing URL?"
+# If it responds, Ollama is working!
+# Type /bye to exit
+
+# Check Ollama API endpoint
+curl http://localhost:11434/api/tags
+# Should return JSON with model list
+```
+- If Ollama isn't running:
+
+```
+# Start Ollama service
+ollama serve
+# Keep this running in a terminal
+```
+
+#### STEP 2: Configure PhishGuardAI to Use Ollama
+
+
+##### Option A: Environment Variables
+
+```
+# .env file
+
+# Enable LLM judge (instead of stub)
+JUDGE_BACKEND=llm
+
+# Ollama API endpoint (default is localhost:11434)
+OLLAMA_BASE_URL=http://localhost:11434
+
+# Model name (must match your installed model)
+OLLAMA_MODEL=llama3.2:1b
+
+# Judge timeout (seconds)
+JUDGE_TIMEOUT=10
+
+# Verbose logging (to see judge calls)
+LOG_LEVEL=DEBUG
+```
+
+##### Option B: Set Environment Variables Directly
+- **Windows:**
+```
+set JUDGE_BACKEND=llm
+set OLLAMA_BASE_URL=http://localhost:11434
+set OLLAMA_MODEL=llama3.2:1b
+set LOG_LEVEL=DEBUG
+```
+
+- **Linux/Mac:**
+```
+export JUDGE_BACKEND=llm
+export OLLAMA_BASE_URL=http://localhost:11434
+export OLLAMA_MODEL=llama3.2:1b
+export LOG_LEVEL=DEBUG
+```
+
 ### SHAP Explainability Integration
 
 **Purpose:** Provide feature-level explanations for model predictions to support:
