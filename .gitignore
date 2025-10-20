@@ -1,68 +1,58 @@
-# Python virtual environment
-venv/
 
+!data/processed/
+!data/raw/*.csv
+!data/raw/*.json
+!data/raw/*.parquet
+# allow configs but ignore processed CSVs
+# Coverage reports
+# data artifacts (keep raw local)
+# Environment variables file
+# Great Expectations cache
+# IDE
+# Jupyter notebook checkpoints
+# local runs and outputs
+# MLflow database
+# OS
+# Package build artifacts
+# Pytest cache
 # Python cache
-__pycache__/
-**/__pycache__/
-*.py[cod]
+# Python virtual environment
+# Temporary test files
 *$py.class
-*.so
+**/.pytest_cache/
+**/__pycache__/
+*.cover
+*.db
+*.egg-info/
+*.log
+*.py[cod]
+*.pyc
 *.pyc
 *.pyo
-
-# Pytest cache
-.pytest_cache/
-**/.pytest_cache/
-
-# Package build artifacts
-*.egg-info/
-build/
-dist/
-
-# Environment variables file
-.env
-
-# IDE
-.vscode/
-.idea/
-*.swp
+*.so
 *.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# data artifacts (keep raw local)
-data/**/*
-!data/raw/*.csv
-!data/raw/*.parquet
-!data/raw/*.json
-
-# allow configs but ignore processed CSVs
-!data/processed/
-data/processed/*.csv
-
-# local runs and outputs
-mlruns/
-outputs/*.png
-outputs/*.csv
-
-# MLflow database
-mlflow.db
-
-# Great Expectations cache
-gx/uncommitted/
-
-# Temporary test files
-test_shap_locally.py
-model_logs.txt
-
-# Jupyter notebook checkpoints
-.ipynb_checkpoints/
-
-# Coverage reports
+*.swp
 .coverage
+.DS_Store
+.env
+.idea/
+.ipynb_checkpoints/
+.pytest_cache/
+.vscode/
+__pycache__
+__pycache__/
+build/
+data/**/*
+data/processed/*.csv
+dist/
+gx/uncommitted/
+gx/uncommitted/
 htmlcov/
-*.cover
-
-
+mlartifacts/
+mlflow.db
+mlruns/
+mlruns/
+outputs/*.csv
+test_shap_locally.py
+Thumbs.db
+venv/
