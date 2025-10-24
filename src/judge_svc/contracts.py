@@ -6,11 +6,12 @@ JudgeVerdict = Literal["LEAN_LEGIT", "LEAN_PHISH", "UNCERTAIN"]
 
 
 class FeatureDigest(BaseModel):
-    # 8-feature model (production features - required)
-    IsHTTPS: int = Field(..., ge=0, le=1, description="Binary HTTPS indicator")
+    # 7-feature model (production features - required)
+
     TLDLegitimateProb: float = Field(
-        ..., ge=0.0, le=1.0, description="Bayesian TLD legitimacy probability"
+        ..., ge=0.0, le=1.0, description="TLD legitimacy probability"
     )
+
     CharContinuationRate: float = Field(
         ..., ge=0.0, le=1.0, description="Character continuation pattern rate"
     )

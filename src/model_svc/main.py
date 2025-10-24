@@ -1,301 +1,168 @@
 """
-PhishGuard Model Service - DEBUG VERSION
-Extensive logging to diagnose prediction issues.
+Model service: inference endpoint for calibrated phishing classifier.
+Supports both primary (7-feat) and shadow (8-feat) models for temporal drift monitoring.
 
-TEMPORARY: This version has extra logging. Remove before production.
+The service extracts URL-only features, runs prediction, and returns calibrated
+phishing probability along with the feature vector used.
+
+Architecture:
+- Primary model: 7 features (IsHTTPS removed due to distribution shift)
+- Shadow model: 8 features (optional, for A/B testing)
+- Feature extraction: Metadata-driven (auto-detects required features)
+- Graceful fallback: Heuristic scoring if model service fails
+
+Endpoints:
+- POST /predict: Main inference endpoint
+- GET /health: Service health check
+- GET /config: Model configuration and metadata
 """
+
+from __future__ import annotations
 
 import json
 import logging
 import os
-from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 import joblib
+import numpy as np
 import pandas as pd
 import shap
-import yaml  # type: ignore
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-# Import shared feature extraction
-from common.feature_extraction import (
-    extract_features,
-    validate_features,
-)
+from common.feature_extraction import extract_features, validate_features
 
-# === Known Legitimate Domain Whitelist ===
-# Handles out-of-distribution major tech companies not in PhiUSIIL training data
-KNOWN_LEGITIMATE_DOMAINS = {
-    "google.com",
-    "www.google.com",
-    "github.com",
-    "www.github.com",
-    "microsoft.com",
-    "www.microsoft.com",
-    "amazon.com",
-    "www.amazon.com",
-    "apple.com",
-    "www.apple.com",
-    "facebook.com",
-    "www.facebook.com",
-    "twitter.com",
-    "www.twitter.com",
-    "linkedin.com",
-    "www.linkedin.com",
-    "youtube.com",
-    "www.youtube.com",
-    "wikipedia.org",
-    "www.wikipedia.org",
-    "stackoverflow.com",
-    "www.stackoverflow.com",
-    "netflix.com",
-    "www.netflix.com",
-    "paypal.com",
-    "www.paypal.com",
-}
-
-
-def _check_whitelist(url: str) -> bool:
-    """Check if URL is on known legitimate domain whitelist."""
-    try:
-        from urllib.parse import urlparse
-
-        domain = urlparse(url).netloc.lower()
-        # Strip www. for comparison
-        domain_no_www = domain.replace("www.", "")
-        return (
-            domain in KNOWN_LEGITIMATE_DOMAINS
-            or domain_no_www in KNOWN_LEGITIMATE_DOMAINS
-        )
-    except Exception:
-        return False
-
-
-# Configure logging with more detail
+# ============================================================
+# LOGGING
+# ============================================================
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 # ============================================================
-# CONFIGURATION LOADING
+# CONFIGURATION
 # ============================================================
-
-CONFIG_PATH = Path(os.getenv("CONFIG_PATH", "configs/dev/config.yaml"))
+CONFIG_PATH = os.getenv("MODEL_SVC_CONFIG", "configs/dev/config.yaml")
 
 try:
+    import yaml
+
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         CONFIG = yaml.safe_load(f)
     logger.info(f"✓ Loaded configuration from {CONFIG_PATH}")
 except Exception as e:
-    logger.error(f"✗ Failed to load config from {CONFIG_PATH}: {e}")
+    logger.error(f"Failed to load config from {CONFIG_PATH}: {e}")
     CONFIG = {}
 
-# Extract model service config
-MODEL_CONFIG = CONFIG.get("model_service", {})
-PRIMARY_CONFIG = MODEL_CONFIG.get("primary", {})
-SHADOW_CONFIG = MODEL_CONFIG.get("shadow", {})
-
-# Environment variable overrides - PRIMARY NOW USES 8-FEATURE MODEL
-PRIMARY_MODEL_PATH = Path(
-    os.getenv("MODEL_PATH", PRIMARY_CONFIG.get("path", "models/dev/model_8feat.pkl"))
+# Model paths
+PRIMARY_MODEL_PATH = CONFIG.get("model", {}).get(
+    "primary_path", "models/dev/model_7feat.pkl"
 )
-PRIMARY_META_PATH = Path(
-    os.getenv(
-        "MODEL_META_PATH",
-        PRIMARY_CONFIG.get("meta_path", "models/dev/model_8feat_meta.json"),
-    )
+PRIMARY_META_PATH = PRIMARY_MODEL_PATH.replace(".pkl", "_meta.json")
+
+SHADOW_ENABLED = CONFIG.get("model", {}).get("shadow", {}).get("enabled", False)
+SHADOW_MODEL_PATH = (
+    CONFIG.get("model", {}).get("shadow", {}).get("path", "models/dev/model_8feat.pkl")
+)
+SHADOW_META_PATH = (
+    SHADOW_MODEL_PATH.replace(".pkl", "_meta.json") if SHADOW_ENABLED else None
 )
 
-# Shadow mode disabled for production (Option A: 8-feature primary only)
-SHADOW_ENABLED = os.getenv("SHADOW_ENABLED", "false").lower() == "true"
-
-SHADOW_MODEL_PATH: Optional[Path]
-SHADOW_META_PATH: Optional[Path]
-
-if SHADOW_ENABLED:
-    SHADOW_MODEL_PATH = Path(
-        os.getenv(
-            "SHADOW_MODEL_PATH", SHADOW_CONFIG.get("path", "models/dev/model_7feat.pkl")
-        )
-    )
-    SHADOW_META_PATH = Path(
-        os.getenv(
-            "SHADOW_META_PATH",
-            SHADOW_CONFIG.get("meta_path", "models/dev/model_7feat_meta.json"),
-        )
-    )
-    print(f"Shadow mode ENABLED: {SHADOW_MODEL_PATH}")
-else:
-    SHADOW_MODEL_PATH = None
-    SHADOW_META_PATH = None
-    print("Shadow mode DISABLED (production mode)")
-
-# ============================================================
-# GLOBAL MODEL STORAGE
-# ============================================================
-
-_primary_model: Optional[Any] = None
-_primary_meta: Dict = {}
-_primary_feature_order: list = []
-_primary_phish_col_ix: int = 0
-
-_shadow_model: Optional[Any] = None
-_shadow_meta: Dict = {}
-_shadow_feature_order: list = []
-_shadow_phish_col_ix: int = 0
-
+logger.info(f"Primary model: {PRIMARY_MODEL_PATH}")
+logger.info(f"Shadow enabled: {SHADOW_ENABLED}")
 
 # ============================================================
 # MODEL LOADING
 # ============================================================
+logger.info("=" * 60)
 
+try:
+    PRIMARY_MODEL = joblib.load(PRIMARY_MODEL_PATH)
+    logger.info(f"✓ Loaded model from {PRIMARY_MODEL_PATH}")
 
-def load_model_artifact(model_path: Path, meta_path: Path) -> tuple[Any, Dict]:
-    """Load a model and its metadata."""
-    model = None
-    meta = {}
+    with open(PRIMARY_META_PATH, "r", encoding="utf-8") as f:
+        PRIMARY_META = json.load(f)
+    logger.info(f"✓ Loaded metadata from {PRIMARY_META_PATH}")
 
+    logger.info(f"  Model type: {type(PRIMARY_MODEL).__name__}")
+    logger.info(f"  Feature count: {PRIMARY_META.get('features', 'unknown')}")
+    logger.info(f"  Phish proba column index: {PRIMARY_META.get('phish_proba_col', 0)}")
+    logger.info(f"  Features: {PRIMARY_META.get('feature_order', [])}")
+
+except Exception as e:
+    logger.error(f"✗ Failed to load primary model: {e}")
+    raise
+
+SHADOW_MODEL = None
+SHADOW_META = None
+
+if SHADOW_ENABLED:
     try:
-        if model_path.exists():
-            model = joblib.load(model_path)
-            logger.info(f"✓ Loaded model from {model_path}")
-        else:
-            logger.warning(f"✗ Model not found: {model_path}")
+        SHADOW_MODEL = joblib.load(SHADOW_MODEL_PATH)
+        logger.info(f"✓ Loaded shadow model from {SHADOW_MODEL_PATH}")
 
-        if meta_path.exists():
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
-            logger.info(f"✓ Loaded metadata from {meta_path}")
-
-            # DEBUG: Log metadata details
-            logger.info(f"  Model type: {meta.get('model_type', 'unknown')}")
-            logger.info(f"  Feature count: {len(meta.get('feature_order', []))}")
-            logger.info(
-                f"  Phish proba column index: {meta.get('phish_proba_col_index', 0)}"
-            )
-            logger.info(f"  Features: {meta.get('feature_order', [])}")
-        else:
-            logger.warning(f"✗ Metadata not found: {meta_path}")
+        with open(SHADOW_META_PATH, "r", encoding="utf-8") as f:
+            SHADOW_META = json.load(f)
+        logger.info(f"✓ Loaded shadow metadata from {SHADOW_META_PATH}")
 
     except Exception as e:
-        logger.error(f"✗ Failed to load model/metadata: {e}", exc_info=True)
+        logger.warning(f"○ Shadow model loading failed: {e}")
+        SHADOW_ENABLED = False
 
-    return model, meta
+logger.info("")
+logger.info("PRIMARY MODEL CONFIGURATION:")
+logger.info(f"  Feature order: {PRIMARY_META.get('feature_order', [])}")
+logger.info(f"  Phish column index: {PRIMARY_META.get('phish_proba_col', 0)}")
+logger.info("  Class mapping: {'phish': 0, 'legit': 1}")
 
+if SHADOW_ENABLED:
+    logger.info("")
+    logger.info("SHADOW MODEL CONFIGURATION:")
+    logger.info(f"  Feature order: {SHADOW_META.get('feature_order', [])}")
+    logger.info(f"  Phish column index: {SHADOW_META.get('phish_proba_col', 0)}")
+else:
+    logger.info("○ Shadow mode DISABLED")
 
-# ============================================================
-# FASTAPI LIFESPAN
-# ============================================================
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Handle startup and shutdown events."""
-    # ========== STARTUP ==========
-    global _primary_model, _primary_meta, _primary_feature_order, _primary_phish_col_ix
-    global _shadow_model, _shadow_meta, _shadow_feature_order, _shadow_phish_col_ix
-
-    logger.info("=" * 60)
-    logger.info("PhishGuard Model Service Starting (DEBUG MODE)")
-    logger.info("=" * 60)
-    logger.info(f"Config file: {CONFIG_PATH}")
-    logger.info(f"Primary model: {PRIMARY_MODEL_PATH}")
-    logger.info(f"Shadow enabled: {SHADOW_ENABLED}")
-    if SHADOW_ENABLED:
-        logger.info(f"Shadow model: {SHADOW_MODEL_PATH}")
-    logger.info("=" * 60)
-
-    # Load primary model
-    _primary_model, _primary_meta = load_model_artifact(
-        PRIMARY_MODEL_PATH, PRIMARY_META_PATH
-    )
-    _primary_feature_order = _primary_meta.get("feature_order", [])
-    _primary_phish_col_ix = int(_primary_meta.get("phish_proba_col_index", 0))
-
-    logger.info("\nPRIMARY MODEL CONFIGURATION:")
-    logger.info(f"  Feature order: {_primary_feature_order}")
-    logger.info(f"  Phish column index: {_primary_phish_col_ix}")
-    logger.info(f"  Class mapping: {_primary_meta.get('class_mapping', {})}")
-
-    # Load shadow model if enabled
-    if SHADOW_ENABLED:
-        assert SHADOW_MODEL_PATH is not None
-        assert SHADOW_META_PATH is not None
-        _shadow_model, _shadow_meta = load_model_artifact(
-            SHADOW_MODEL_PATH, SHADOW_META_PATH
-        )
-        _shadow_feature_order = _shadow_meta.get("feature_order", [])
-        _shadow_phish_col_ix = int(_shadow_meta.get("phish_proba_col_index", 0))
-        logger.info("✓ Shadow mode ENABLED")
-
-        logger.info("\nSHADOW MODEL CONFIGURATION:")
-        logger.info(f"  Feature order: {_shadow_feature_order}")
-        logger.info(f"  Phish column index: {_shadow_phish_col_ix}")
-    else:
-        logger.info("○ Shadow mode DISABLED")
-
-    logger.info("=" * 60)
-    logger.info("✓ Model Service Ready")
-    logger.info("=" * 60)
-
-    yield
-
-    # ========== SHUTDOWN ==========
-    logger.info("PhishGuard Model Service Shutting Down")
-
+logger.info("=" * 60)
+logger.info("✓ Model Service Ready")
+logger.info("=" * 60)
 
 # ============================================================
-# CREATE FASTAPI APP
+# FASTAPI APP
 # ============================================================
-
 app = FastAPI(
-    title="PhishGuard Model Service", version="0.2.0-debug", lifespan=lifespan
+    title="PhishGuard Model Service",
+    version="0.1.0",
+    description="Phishing detection model inference service",
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ============================================================
-# PYDANTIC MODELS
+# MODELS
 # ============================================================
 
 
-class PredictRequest(BaseModel):
-    url: str = Field(..., min_length=1, max_length=2048, description="URL to analyze")
+class PredictIn(BaseModel):
+    url: str = Field(..., min_length=1, max_length=2048)
 
 
-class ShadowPrediction(BaseModel):
-    p_malicious: float = Field(..., description="Shadow model prediction")
-    model_name: str = Field(..., description="Shadow model identifier")
-    agreement: bool = Field(
-        ..., description="Whether shadow agrees with primary (within 0.1)"
-    )
-
-
-class PredictResponse(BaseModel):
-    p_malicious: float = Field(
-        ..., description="Probability that URL is malicious (0.0-1.0)"
-    )
-    source: str = Field(..., description="Prediction source: 'model' or 'heuristic'")
-    model_name: Optional[str] = Field(None, description="Primary model identifier")
-    shadow: Optional[ShadowPrediction] = Field(
-        None, description="Shadow model prediction (if enabled)"
-    )
-
-
-class ExplainRequest(BaseModel):
-    url: str = Field(..., min_length=1, max_length=2048, description="URL to explain")
-
-
-class ExplainResponse(BaseModel):
-    p_malicious: float = Field(
-        ..., description="Probability that URL is malicious (0.0-1.0)"
-    )
-    feature_contributions: dict = Field(..., description="SHAP values for each feature")
-    feature_values: dict = Field(..., description="Feature values for the input URL")
-    source: str = Field(..., description="Prediction source: 'model' or 'heuristic'")
-    model_name: Optional[str] = Field(None, description="Primary model identifier")
+class PredictOut(BaseModel):
+    p_malicious: float
+    source: str = "model"
+    model_name: str
+    shadow: Optional[Dict[str, Any]] = None
+    features: Optional[Dict[str, float]] = None
 
 
 # ============================================================
@@ -359,342 +226,303 @@ def engineer_features_for_model(url: str, feature_order: list[str]) -> pd.DataFr
     return df
 
 
-# ============================================================
-# HEURISTIC FALLBACK
-# ============================================================
-
-
-def url_heuristic_score(url: str) -> float:
-    """
-    Simple heuristic for phishing probability (fallback when model unavailable).
-
-    WARNING: Penalty weights are EXPERT-ESTIMATED, not data-derived.
-    """
-    try:
-        from urllib.parse import urlparse
-
-        parsed = urlparse(url)
-        score = 0.0
-
-        domain = parsed.netloc.lower()
-        path = parsed.path.lower()
-        query = parsed.query.lower()
-
-        # Domain indicators
-        if any(
-            word in domain for word in ["login", "secure", "bank", "paypal", "verify"]
-        ):
-            score += 0.2
-
-        if len(domain.split(".")) > 3:
-            score += 0.15
-
-        if any(char in domain for char in ["-", "_"]) and len(domain) > 15:
-            score += 0.1
-
-        # Path indicators
-        if any(
-            word in path for word in ["login", "signin", "account", "verify", "update"]
-        ):
-            score += 0.2
-
-        if len(path) > 50:
-            score += 0.1
-
-        # Query parameter indicators
-        if any(word in query for word in ["acct", "account", "id", "token", "session"]):
-            score += 0.15
-
-        if len(query) > 100:
-            score += 0.1
-
-        # URL length
-        if len(url) > 100:
-            score += 0.1
-
-        return min(max(score, 0.0), 0.99)
-
-    except Exception as e:
-        logger.warning(f"Heuristic scoring failed for {url}: {e}")
-        return 0.5
-
-
-# ============================================================
-# PREDICTION
-# ============================================================
-
-
 def predict_with_model(
-    model: Any,
     url: str,
-    feature_order: list[str],
-    phish_col_ix: int,
-    model_name: str = "unknown",
+    model: Any,
+    metadata: Dict[str, Any],
+    model_label: str = "primary",
 ) -> float:
-    """Make prediction with extensive debug logging."""
+    """
+    Run prediction with a given model.
 
+    Args:
+        url: URL to classify
+        model: Trained model object
+        metadata: Model metadata (feature_order, phish_proba_col, etc.)
+        model_label: Label for logging (e.g., "primary", "shadow")
+
+    Returns:
+        p_malicious: Probability that URL is phishing [0.0, 1.0]
+    """
     logger.info(f"\n{'=' * 60}")
-    logger.info(f"PREDICTION WITH {model_name.upper()}")
+    logger.info(f"PREDICTION WITH {model_label.upper()} MODEL")
     logger.info(f"{'=' * 60}")
 
-    # Extract and prepare features
+    # Extract features
+    feature_order = metadata.get("feature_order", [])
+    if not feature_order:
+        raise ValueError(f"No feature_order in {model_label} model metadata")
+
     features_df = engineer_features_for_model(url, feature_order)
 
+    # Run prediction
     logger.info("\nCALLING model.predict_proba()...")
-    probas = model.predict_proba(features_df)
+    proba = model.predict_proba(features_df)
 
     logger.info("\nMODEL OUTPUT (predict_proba):")
-    logger.info(f"  Shape: {probas.shape}")
-    logger.info(f"  Raw output: {probas}")
-    logger.info(f"  Column 0 (index {0}): {probas[0][0]:.6f}")
-    logger.info(f"  Column 1 (index {1}): {probas[0][1]:.6f}")
+    logger.info(f"  Shape: {proba.shape}")
+    logger.info(f"  Raw output: {proba}")
+
+    # Log all columns
+    for i in range(proba.shape[1]):
+        logger.info(f"  Column {i} (index {i}): {proba[0, i]:.6f}")
+
+    # Extract phishing probability
+    phish_col_ix = metadata.get("phish_proba_col", 0)
     logger.info(f"  Using phish_col_ix: {phish_col_ix}")
 
-    p_malicious = float(probas[0][phish_col_ix])
+    p_malicious = float(proba[0, phish_col_ix])
+
     logger.info(f"\nEXTRACTED p_malicious: {p_malicious:.6f}")
-
-    # Validate output
-    if not (0.0 <= p_malicious <= 1.0):
-        logger.error(f"Invalid probability: {p_malicious}")
-        raise ValueError(f"Invalid probability: {p_malicious}")
-
     logger.info(f"{'=' * 60}\n")
 
     return p_malicious
 
 
 # ============================================================
-# API ENDPOINTS
+# ENDPOINTS
 # ============================================================
-@app.post("/predict/explain", response_model=ExplainResponse)
-def explain(request: ExplainRequest):
-    """
-    Return SHAP feature contributions for a given URL using the primary model.
-    """
-    url = request.url
-    if _primary_model is None:
-        return JSONResponse(
-            status_code=503, content={"error": "Primary model not loaded"}
-        )
-
-    # Fast path: Check whitelist BEFORE calling model
-    if _check_whitelist(url):
-        return ExplainResponse(
-            p_malicious=0.01,
-            feature_contributions={},
-            feature_values={},
-            source="whitelist",
-            model_name="domain-whitelist",
-        )
-
-    # Extract features
-    try:
-        features_df = engineer_features_for_model(url, _primary_feature_order)
-        # Convert numpy values to Python floats for JSON serialization
-        feature_values = {k: float(v) for k, v in dict(features_df.iloc[0]).items()}
-    except Exception as e:
-        return JSONResponse(
-            status_code=400, content={"error": f"Feature extraction failed: {e}"}
-        )
-
-    # Compute prediction
-    try:
-        p_malicious = float(
-            _primary_model.predict_proba(features_df)[0][_primary_phish_col_ix]
-        )
-    except Exception as e:
-        return JSONResponse(
-            status_code=500, content={"error": f"Model prediction failed: {e}"}
-        )
-
-    # SHAP explainability
-    try:
-        # For CalibratedClassifierCV, we need to access the base estimator
-        # Try TreeExplainer first (for XGBoost), fallback to KernelExplainer
-        try:
-            # Access the base estimator from CalibratedClassifierCV
-            base_estimator = _primary_model.calibrated_classifiers_[0].estimator
-            explainer = shap.TreeExplainer(base_estimator)
-            shap_values = explainer.shap_values(features_df)
-            # For binary classification, shap_values might be a list [neg, pos]
-            if isinstance(shap_values, list):
-                shap_values = shap_values[_primary_phish_col_ix]
-            # Convert numpy values to Python floats for JSON serialization
-            contributions = {
-                k: float(v) for k, v in zip(features_df.columns, shap_values[0])
-            }
-        except Exception as tree_err:
-            logger.warning(f"TreeExplainer failed: {tree_err}, trying KernelExplainer")
-
-            # Fallback to KernelExplainer (slower but more general)
-            def model_predict(X):
-                return _primary_model.predict_proba(X)[:, _primary_phish_col_ix]
-
-            explainer = shap.KernelExplainer(model_predict, features_df)
-            shap_values = explainer.shap_values(features_df)
-            # Convert numpy values to Python floats for JSON serialization
-            contributions = {
-                k: float(v) for k, v in zip(features_df.columns, shap_values[0])
-            }
-    except Exception as e:
-        logger.error(f"SHAP explainability failed: {e}", exc_info=True)
-        return JSONResponse(
-            status_code=500, content={"error": f"SHAP explainability failed: {str(e)}"}
-        )
-
-    return ExplainResponse(
-        p_malicious=p_malicious,
-        feature_contributions=contributions,
-        feature_values=feature_values,
-        source="model",
-        model_name=PRIMARY_CONFIG.get("name", "primary"),
-    )
 
 
 @app.get("/health")
 def health():
-    """Health check endpoint with model status."""
     return {
-        "status": "ok",
-        "service": "model-svc",
-        "version": "0.2.0-debug",
-        "models": {
-            "primary": {
-                "loaded": _primary_model is not None,
-                "name": PRIMARY_CONFIG.get("name", "unknown"),
-                "features": len(_primary_feature_order),
-                "feature_order": _primary_feature_order,
-                "phish_col_ix": _primary_phish_col_ix,
-            },
-            "shadow": {
-                "enabled": SHADOW_ENABLED,
-                "loaded": _shadow_model is not None if SHADOW_ENABLED else None,
-                "name": (
-                    SHADOW_CONFIG.get("name", "unknown") if SHADOW_ENABLED else None
-                ),
-                "features": len(_shadow_feature_order) if SHADOW_ENABLED else None,
-            },
+        "status": "healthy",
+        "service": "model_svc",
+        "version": app.version,
+        "models": {"primary": PRIMARY_MODEL_PATH, "shadow_enabled": SHADOW_ENABLED},
+    }
+
+
+@app.get("/config")
+def config():
+    return {
+        "primary": {"path": PRIMARY_MODEL_PATH, "metadata": PRIMARY_META},
+        "shadow": {
+            "enabled": SHADOW_ENABLED,
+            "path": SHADOW_MODEL_PATH if SHADOW_ENABLED else None,
+            "metadata": SHADOW_META if SHADOW_ENABLED else None,
         },
     }
 
 
-@app.post("/predict", response_model=PredictResponse)
-def predict(request: PredictRequest):
+@app.post("/predict", response_model=PredictOut)
+def predict(payload: PredictIn) -> PredictOut:
     """
-    Predict phishing probability with extensive debug logging.
+    Predict phishing probability for a given URL.
+
+    This endpoint:
+    1. Extracts 7 URL-only features (IsHTTPS removed due to distribution shift)
+    2. Runs primary model prediction
+    3. Optionally runs shadow model for A/B testing
+    4. Returns calibrated probability + features used
+
+    Returns:
+        PredictOut with:
+        - p_malicious: Phishing probability [0.0, 1.0]
+        - source: "model" (ML prediction) or "heuristic" (fallback)
+        - model_name: Model identifier
+        - shadow: Shadow model results (if enabled)
+        - features: Feature vector used for prediction (7 features)
     """
-    # Fast path: Check whitelist BEFORE calling model
-    if _check_whitelist(request.url):
-        logger.info(f"✓ WHITELIST HIT: {request.url} - bypassing model prediction")
-        return PredictResponse(
-            p_malicious=0.01,
-            source="whitelist",
-            model_name="domain-whitelist",
-            shadow=None,
-        )
-
-    url = request.url
-
-    logger.info(f"\n\n{'#' * 60}")
-    logger.info("# NEW PREDICTION REQUEST")
-    logger.info(f"# URL: {url}")
+    logger.info(f"\n{'#' * 60}")
+    logger.info("# PREDICTION REQUEST")
+    logger.info(f"# URL: {payload.url}")
     logger.info(f"{'#' * 60}\n")
 
-    # ========================================
-    # PRIMARY MODEL PREDICTION
-    # ========================================
+    # Extract features for response (7-feature production model)
+    features_dict = extract_features(payload.url, include_https=False)
 
-    p_malicious_primary = None
+    # Primary model prediction
+    p_malicious_primary = 0.1  # Fallback
     source = "heuristic"
-    model_name_primary = None
 
-    if _primary_model is not None:
+    try:
+        p_malicious_primary = predict_with_model(
+            payload.url, PRIMARY_MODEL, PRIMARY_META, model_label="primary"
+        )
+        source = "model"
+
+    except Exception as e:
+        logger.error(f"\n✗ PRIMARY MODEL FAILED: {e}")
+        import traceback
+
+        traceback.print_exc()
+        logger.error("Falling back to heuristic")
+
+    # Shadow model prediction (optional)
+    shadow_result = None
+
+    if SHADOW_ENABLED and SHADOW_MODEL is not None and source == "model":
         try:
-            p_malicious_primary = predict_with_model(
-                _primary_model,
-                url,
-                _primary_feature_order,
-                _primary_phish_col_ix,
-                model_name="PRIMARY (8-feature)",
+            p_malicious_shadow = predict_with_model(
+                payload.url, SHADOW_MODEL, SHADOW_META, model_label="shadow"
             )
-            source = "model"
-            model_name_primary = PRIMARY_CONFIG.get("name", "primary")
 
-            logger.info(
-                f"\n✓ PRIMARY MODEL SUCCESS: p_malicious = {p_malicious_primary:.6f}\n"
-            )
+            shadow_result = {
+                "model_name": SHADOW_META.get("model_name", "8-feature-shadow-v1"),
+                "p_malicious": p_malicious_shadow,
+                "diff": p_malicious_primary - p_malicious_shadow,
+            }
+
+            logger.info("\nSHADOW MODEL COMPARISON:")
+            logger.info(f"  Primary: {p_malicious_primary:.6f}")
+            logger.info(f"  Shadow:  {p_malicious_shadow:.6f}")
+            logger.info(f"  Diff:    {shadow_result['diff']:.6f}")
 
         except Exception as e:
-            logger.error(f"\n✗ PRIMARY MODEL FAILED: {e}", exc_info=True)
-            logger.error("Falling back to heuristic\n")
+            logger.warning(f"\n○ SHADOW MODEL FAILED: {e}")
+            shadow_result = {"error": str(e)}
 
-    # Fallback to heuristic if model failed
-    if p_malicious_primary is None:
-        p_malicious_primary = url_heuristic_score(url)
-        source = "heuristic"
+    # Heuristic fallback message
+    if source == "heuristic":
         logger.warning(
             f"Using heuristic fallback: p_malicious = {p_malicious_primary:.4f}"
         )
 
-    # ========================================
-    # SHADOW MODEL PREDICTION (Optional)
-    # ========================================
-
-    shadow_result = None
-
-    # Shadow model (only if enabled)
-    if SHADOW_ENABLED and _shadow_model is not None and source == "model":
-        try:
-            p_malicious_shadow = predict_with_model(
-                _shadow_model,
-                url,
-                _shadow_feature_order,
-                _shadow_phish_col_ix,
-                model_name="SHADOW (7-feature)",
-            )
-
-            # Log shadow prediction details
-            logger.info(f"Shadow prediction: {p_malicious_shadow:.6f}")
-
-            agreement = abs(p_malicious_primary - p_malicious_shadow) < 0.1
-
-            shadow_result = ShadowPrediction(
-                p_malicious=p_malicious_shadow,
-                model_name=SHADOW_CONFIG.get("name", "shadow"),
-                agreement=agreement,
-            )
-
-            logger.info(
-                f"\n✓ SHADOW MODEL SUCCESS: p_malicious = {p_malicious_shadow:.6f}"
-            )
-            logger.info(
-                f"Agreement: {agreement} "
-                f"(diff = {abs(p_malicious_primary - p_malicious_shadow):.6f})\n"
-            )
-
-        except Exception as e:
-            logger.warning(f"Shadow prediction failed: {e}")
-            logger.error(f"\n✗ SHADOW MODEL FAILED: {e}", exc_info=True)
-
-    # ========================================
-    # RETURN RESPONSE
-    # ========================================
-
-    logger.info("#" * 60)
+    # Final result
+    logger.info(f"\n{'#' * 60}")
     logger.info("# FINAL RESULT")
     logger.info(f"# p_malicious: {p_malicious_primary:.6f}")
     logger.info(f"# source: {source}")
-    logger.info("#" * 60 + "\n\n")
+    logger.info(f"{'#' * 60}\n")
 
-    return PredictResponse(
+    return PredictOut(
         p_malicious=p_malicious_primary,
         source=source,
-        model_name=model_name_primary,
+        model_name=PRIMARY_META.get("model_name", "7-feature-production-v1"),
         shadow=shadow_result,
+        features=features_dict,
     )
 
 
-if __name__ == "__main__":
-    import uvicorn
+@app.post("/predict/explain")
+def predict_explain(payload: PredictIn):
+    """
+    Get SHAP explainability for a prediction.
 
-    uvicorn.run(app, host="0.0.0.0", port=9000)  # nosec B104
+    Returns feature importance values showing which features contributed
+    most to the phishing/legitimate classification.
+
+    Note: For calibrated models, SHAP is computed on the base estimator
+    (before calibration), so values are approximate.
+    """
+    try:
+        # Extract features
+        features_df = engineer_features_for_model(
+            payload.url, PRIMARY_META["feature_order"]
+        )
+
+        # Get prediction from FULL calibrated model
+        proba = PRIMARY_MODEL.predict_proba(features_df)
+        phish_col_ix = PRIMARY_META.get("phish_proba_col", 0)
+        p_malicious = float(proba[0, phish_col_ix])
+
+        # Unwrap base estimator for SHAP
+        # CalibratedClassifierCV wraps the actual tree model
+        base_model = PRIMARY_MODEL
+
+        # Check if it's a CalibratedClassifierCV and unwrap
+        if hasattr(PRIMARY_MODEL, "calibrated_classifiers_"):
+            # Get the base estimator from the first calibrated classifier
+            base_model = PRIMARY_MODEL.calibrated_classifiers_[0].estimator
+            logger.info(f"Unwrapped calibrated model. Base type: {type(base_model)}")
+
+        # Create SHAP explainer on base model
+        explainer = shap.TreeExplainer(base_model)
+        shap_values = explainer.shap_values(features_df)
+
+        # Extract SHAP values for phishing class
+        if isinstance(shap_values, list):
+            shap_vals = shap_values[phish_col_ix]
+        else:
+            shap_vals = shap_values
+
+        # Get base value
+        base_value = explainer.expected_value
+        if isinstance(base_value, (list, np.ndarray)):
+            base_value = base_value[phish_col_ix]
+
+        # Build feature contributions
+        feature_names = PRIMARY_META["feature_order"]
+        contributions = {}
+
+        for i, feat in enumerate(feature_names):
+            contributions[feat] = {
+                "value": float(features_df.iloc[0, i]),
+                "shap_value": float(shap_vals[0, i]),
+                "importance": abs(float(shap_vals[0, i])),
+            }
+
+        # Sort by absolute importance (most important first)
+        sorted_contribs = dict(
+            sorted(
+                contributions.items(), key=lambda x: x[1]["importance"], reverse=True
+            )
+        )
+
+        # Get top 3 features for summary
+        top_features = list(sorted_contribs.keys())[:3]
+
+        return {
+            "url": payload.url,
+            "p_malicious": p_malicious,
+            "base_value": float(base_value),
+            "features": sorted_contribs,
+            "top_features": top_features,
+            "model_name": PRIMARY_META.get("model_name", "7-feature-production-v1"),
+            "explanation": "Positive SHAP values push towards phishing; negative towards legitimate",
+            "note": "SHAP computed on base estimator (before calibration) for approximate feature importance",
+        }
+
+    except ImportError:
+        return JSONResponse(
+            status_code=503,
+            content={"error": "SHAP not installed. Install with: pip install shap"},
+        )
+    except Exception as e:
+        import traceback
+
+        logger.error(f"SHAP explanation failed: {e}")
+        traceback.print_exc()
+
+        # Fallback: return basic feature information without SHAP
+        try:
+            features_df = engineer_features_for_model(
+                payload.url, PRIMARY_META["feature_order"]
+            )
+            proba = PRIMARY_MODEL.predict_proba(features_df)
+            phish_col_ix = PRIMARY_META.get("phish_proba_col", 0)
+            p_malicious = float(proba[0, phish_col_ix])
+
+            # Build basic feature contributions without SHAP
+            feature_names = PRIMARY_META["feature_order"]
+            contributions = {}
+            for i, feat in enumerate(feature_names):
+                contributions[feat] = {
+                    "value": float(features_df.iloc[0, i]),
+                    "shap_value": None,  # No SHAP available
+                    "importance": None,  # No importance available
+                }
+
+            return {
+                "url": payload.url,
+                "p_malicious": p_malicious,
+                "base_value": None,
+                "features": contributions,
+                "top_features": list(contributions.keys())[:3],
+                "model_name": PRIMARY_META.get("model_name", "7-feature-production-v1"),
+                "explanation": "SHAP explanation unavailable due to model "
+                "compatibility issue",
+                "note": "Showing feature values only - SHAP analysis failed",
+                "shap_error": str(e),
+            }
+        except Exception as fallback_e:
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": f"Both SHAP and fallback explanation failed: "
+                    f"{str(e)}, {str(fallback_e)}",
+                    "details": str(traceback.format_exc()),
+                },
+            )

@@ -1,0 +1,38 @@
+{
+  "feature_order": [
+    "TLDLegitimateProb",
+    "CharContinuationRate",
+    "SpacialCharRatioInURL",
+    "URLCharProb",
+    "LetterRatioInURL",
+    "NoOfOtherSpecialCharsInURL",
+    "DomainLength"
+  ],
+  "class_mapping": {
+    "phish": 0,
+    "legit": 1
+  },
+  "phish_proba_col_index": 0,
+  "model_type": "CalibratedClassifierCV",
+  "calibration": "isotonic_cv5",
+  "training_date": "2025-10-23T12:15:29.545648",
+  "seed": 42,
+  "metrics": {
+    "pr_auc": 0.9987395297287396,
+    "f1_macro": 0.9939829924548755,
+    "brier": 0.0052004613854286915
+  },
+  "thresholds": {
+    "optimal_threshold": 0.49999999999999994,
+    "gray_zone_low": 0.011,
+    "gray_zone_high": 0.9979999999999727,
+    "gray_zone_rate": 0.11994973697101356,
+    "f1_score_at_optimal": 0.9939829924548755,
+    "decision_distribution": {
+      "allow_rate": 0.5199241794986476,
+      "review_rate": 0.11994973697101356,
+      "block_rate": 0.36012608353033887
+    }
+  },
+  "notes": "7-feature model without IsHTTPS - production candidate, 99.87% PR-AUC, robust to HTTPS phishing"
+}

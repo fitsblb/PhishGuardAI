@@ -6,18 +6,18 @@
 model_service:
   # Primary model (production)
   primary:
-    path: "models/dev/model_8feat.pkl"
-    meta_path: "models/dev/model_8feat_meta.json"
-    name: "8-feature-production-v1"
-    description: "8-feature URL model with IsHTTPS (PR-AUC: 99.92%)"
-  
+    path: "models/dev/model_7feat.pkl"
+    meta_path: "models/dev/model_7feat_meta.json"
+    name: "7-feature-production-v1"
+    description: "7-feature URL model without IsHTTPS (PR-AUC: 99.88%)"
+
   # Shadow model (DISABLED for production)
   shadow:
     enabled: false
-    path: "models/dev/model_7feat.pkl"
-    meta_path: "models/dev/model_7feat_meta.json"
-    name: "7-feature-baseline"
-    description: "7-feature URL model without IsHTTPS (research only)"
+    path: "models/dev/model_8feat.pkl"
+    meta_path: "models/dev/model_8feat_meta.json"
+    name: "8-feature-baseline"
+    description: "8-feature URL model with IsHTTPS (research only)"
     log_path: "outputs/shadow_predictions.jsonl"
 
 # Gateway Configuration

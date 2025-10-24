@@ -91,7 +91,6 @@ If the model predicts `p_malicious = 0.85` (85% phishing):
 ```
 Feature                    | SHAP Value | Interpretation
 ---------------------------|------------|----------------------------------
-IsHTTPS = 0               | +0.12      | Missing HTTPS increases risk by 12%
 NoOfOtherSpecialChars = 5 | +0.18      | Many special chars increase risk by 18%
 DomainLength = 20         | -0.05      | Moderate length decreases risk by 5%
 TLDLegitimateProb = 0.62  | +0.08      | Suspicious TLD increases risk by 8%
@@ -112,12 +111,11 @@ SUM                       | +0.42      | Total shift from base rate
 **Top SHAP Contributions:**
 | Feature | Value | SHAP Value | Interpretation |
 |---------|-------|------------|----------------|
-| IsHTTPS | 0.0000 | **+11.8 (red)** | ⚠️ Missing HTTPS strongly indicates phishing |
 | NoOfOtherSpecialCharsInURL | 5.0000 | **+1.76 (red)** | ⚠️ The '1' in "facebook1mob" is typosquatting |
 | DomainLength | 20.0000 | **-1.90 (green)** | ✓ Moderate length slightly reduces risk |
 
 **Analysis:**
-- Primary risk: Missing HTTPS protocol (most phishing sites use HTTP)
+
 - Secondary risk: Typosquatting ("facebook1" mimics "facebook")
 - Despite moderate domain length, the suspicious patterns dominate
 - **Verdict: BLOCK** - Clear phishing attempt
@@ -135,13 +133,12 @@ SUM                       | +0.42      | Total shift from base rate
 | CharContinuationRate | 0.1818 | **+3.29 (red)** | ⚠️ "circlek" has repeated 'k' pattern |
 | DomainLength | 15.0000 | **-2.57 (green)** | ✓ Moderate length reduces risk |
 | NoOfOtherSpecialCharsInURL | 5.0000 | **+2.21 (red)** | ⚠️ Some special chars present |
-| IsHTTPS | 1.0000 | **+1.86 (red)** | ? HTTPS increases risk slightly (counterintuitive) |
 
 **Analysis:**
 - Despite some red flags (char continuation, special chars), net prediction is safe
 - Moderate domain length is strongly protective
 - **Verdict: ALLOW** - Overall legitimate despite minor suspicious signals
-- **Note**: IsHTTPS showing red is a model artifact—in training data, phishing URLs increasingly use HTTPS to appear legitimate
+
 
 ---
 
@@ -155,7 +152,6 @@ SUM                       | +0.42      | Total shift from base rate
 |---------|-------|------------|----------------|
 | NoOfOtherSpecialCharsInURL | 5.0000 | **+2.73 (red)** | ⚠️ Special characters present |
 | CharContinuationRate | 0.1481 | **+1.89 (red)** | ⚠️ Repeated patterns in domain |
-| IsHTTPS | 1.0000 | **+1.80 (red)** | ? HTTPS (artifact) |
 | DomainLength | 20.0000 | **-0.79 (green)** | ✓ Moderate length reduces risk |
 
 **Analysis:**

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import traceback
 from typing import Tuple
 
 import requests
@@ -12,11 +13,17 @@ from judge_svc.stub import judge_url as fallback_stub  # fail-open if LLM not av
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
 JUDGE_MODEL = os.getenv("JUDGE_MODEL", "llama3.2:1b")
-JUDGE_TIMEOUT = float(os.getenv("JUDGE_TIMEOUT_SECS", "12"))
+JUDGE_TIMEOUT = float(os.getenv("JUDGE_TIMEOUT_SECS", "120"))
 
-_VERDICT_RE = re.compile(r"\bVERDICT\s*:\s*(LEAN_PHISH|LEAN_LEGIT|UNCERTAIN)\b", re.I)
-_SCORE_RE = re.compile(r"\bSCORE\s*:\s*(0(?:\.\d+)?|1(?:\.0+)?)\b", re.I)
-_RAT_RE = re.compile(r"\bRATIONALE\s*:\s*(.+)", re.I | re.S)
+_VERDICT_RE = re.compile(
+    r"\*{0,2}\s*VERDICT\s*\*{0,2}\s*:\s*(LEAN_PHISH|LEAN_LEGIT|UNCERTAIN)\b", re.I
+)
+_SCORE_RE = re.compile(
+    r"\*{0,2}\s*SCORE\s*\*{0,2}\s*:\s*(0(?:\.\d+)?|1(?:\.0+)?)\b", re.I
+)
+_RAT_RE = re.compile(
+    r"\*{0,2}\s*RATIONALE\s*\*{0,2}\s*:\s*\*{0,2}\s*(.+?)(?:\n|$)", re.I
+)
 
 
 def _prompt(req: JudgeRequest) -> str:
@@ -24,9 +31,8 @@ def _prompt(req: JudgeRequest) -> str:
     feat = req.features.model_dump()
     return (
         "You are a cybersecurity analyst specializing in phishing detection. "
-        "Assess phishing risk using the URL and 8 sophisticated features:\n\n"
+        "Assess phishing risk using the URL and 7 sophisticated features:\n\n"
         "KEY FEATURES TO ANALYZE:\n"
-        "- IsHTTPS: HTTPS usage (0=HTTP, 1=HTTPS)\n"
         "- TLDLegitimateProb: Bayesian TLD legitimacy probability [0,1]\n"
         "- CharContinuationRate: Character repetition patterns [0,1]\n"
         "- SpacialCharRatioInURL: Special character density [0,1]\n"
@@ -95,8 +101,20 @@ def judge_url_llm(req: JudgeRequest) -> JudgeResponse:
                 **req.features.model_dump(),
             },
         )
-    except Exception:
+    except Exception as e:
+        # Log the actual error
+        print(f"[JUDGE ERROR] LLM judge failed: {type(e).__name__}: {e}")
+        print("[JUDGE ERROR] Full traceback:")
+        traceback.print_exc()
+
         # Fail-open: never block the request path just because LLM isn't available
         fb = fallback_stub(req)
-        fb.context.update({"backend": "stub_fallback", "model": JUDGE_MODEL})
+        fb.context.update(
+            {
+                "backend": "stub_fallback",
+                "model": JUDGE_MODEL,
+                "error": str(e),
+                "error_type": type(e).__name__,
+            }
+        )
         return fb

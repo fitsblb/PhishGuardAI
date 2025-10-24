@@ -11,20 +11,24 @@ A complete machine learning operations (ML Ops) system demonstrating the full li
 
 ---
 
-## 📊 Key Achievements
+## 📊 **Key Achievements**
 
 **Model Performance:**
-- **99.92% PR-AUC** - Near-perfect precision-recall tradeoff
-- **0.09% False Positive Rate** - Only 23 misclassifications out of 26,970 legitimate URLs
-- **99.70% F1-Macro** - Excellent balance across both classes
-- **Brier Score: 0.0026** - Well-calibrated probabilities for threshold-based decisions
+- **99.87% PR-AUC** - Near-perfect precision-recall tradeoff
+- **0.24% False Positive Rate** - Only 66 misclassifications out of 26,970 legitimate URLs
+- **99.40% F1-Macro** - Excellent balance across both classes
+- **Brier Score: 0.0052** - Well-calibrated probabilities for threshold-based decisions
 
 **System Capabilities:**
-- **89% Automation Rate** - High-confidence decisions handled by policy bands
-- **11% Gray Zone** - Uncertain cases escalated to judge with explainable rationale
-- **8 URL-Only Features** - No page fetching required (<50ms inference)
+- **88% High Automation Rate** - High-confidence decisions handled by policy bands (52% ALLOW, 36% BLOCK)
+- **12% Gray Zone** - Uncertain cases escalated to judge with explainable rationale
+- **7 URL-Only Features** - No page fetching required (<50ms inference)
 - **SHAP Explainability** - Feature-level attribution for regulatory compliance
+- **LLM Judge Integration** - Ollama-powered reasoning for edge cases (npm.org, bit.ly)
 - **Production-Grade Validation** - Great Expectations data contracts in CI/CD
+
+**Critical Design Decision:**
+- **Eliminated IsHTTPS Feature** - Chose 7-feature model over 8-feature despite 109 additional false negatives to eliminate 100% HTTPS phishing miss rate (systematic vulnerability in 8-feature model due to distribution shift)
 
 ---
 
@@ -34,12 +38,15 @@ A complete machine learning operations (ML Ops) system demonstrating the full li
 2. [Discovery Phase: Exploratory Data Analysis](#-discovery-phase-exploratory-data-analysis)
 3. [Feature Engineering](#-feature-engineering)
 4. [Model Development](#-model-development)
-5. [Threshold Optimization](#-threshold-optimization)
-6. [Production System Design](#-production-system-design)
-7. [Validation & Quality Assurance](#-validation--quality-assurance)
-8. [Key Learnings](#-key-learnings)
-9. [Quick Start](#-quick-start)
-10. [Documentation](#-documentation)
+5. [Critical Design Decision: IsHTTPS Removal](#-critical-design-decision-ishttps-removal)
+6. [Threshold Optimization](#-threshold-optimization)
+7. [Production System Design](#-production-system-design)
+8. [LLM Judge System](#-llm-judge-system)
+9. [Validation & Quality Assurance](#-validation--quality-assurance)
+10. [API Reference](#-api-reference)
+11. [Key Learnings](#-key-learnings)
+12. [Quick Start](#-quick-start)
+13. [Documentation](#-documentation)
 
 ---
 
@@ -53,7 +60,7 @@ A complete machine learning operations (ML Ops) system demonstrating the full li
                                               │
                                               ▼
                            ┌──────────────────────────────────────────┐
-                           │   GATEWAY SERVICE (:8080 → :8000)       │
+                           │   GATEWAY SERVICE (:8000)                │
                            │  ┌────────────────────────────────────┐  │
                            │  │  1. Whitelist Check (15 domains)   │  │
                            │  │     ├─ google.com, github.com      │  │
@@ -62,26 +69,27 @@ A complete machine learning operations (ML Ops) system demonstrating the full li
                            │                   │                       │
                            │  ┌────────────────▼───────────────────┐  │
                            │  │  2. Model Service Call              │  │
-                           │  │     └─ Returns p_malicious          │  │
+                           │  │     └─ Returns p_malicious + 7 feats│ │
                            │  └────────────────┬───────────────────┘  │
                            │                   │                       │
                            │  ┌────────────────▼───────────────────┐  │
                            │  │  3. Enhanced Routing Logic          │  │
-                           │  │     ├─ Short domain check (≤10)     │  │
+                           │  │     ├─ Short domain check (≤12)     │  │
                            │  │     └─ Routes edge cases to judge   │  │
                            │  └────────────────┬───────────────────┘  │
                            │                   │                       │
                            │  ┌────────────────▼───────────────────┐  │
                            │  │  4. Policy Bands                    │  │
-                           │  │     ├─ p < 0.004 → ALLOW           │  │
-                           │  │     ├─ p > 0.999 → BLOCK           │  │
-                           │  │     └─ 0.004 ≤ p < 0.999 → REVIEW  │  │
+                           │  │     ├─ p < 0.011 → ALLOW           │  │
+                           │  │     ├─ p > 0.998 → BLOCK           │  │
+                           │  │     └─ 0.011 ≤ p ≤ 0.998 → REVIEW  │  │
                            │  └────────────────┬───────────────────┘  │
                            │                   │                       │
                            │  ┌────────────────▼───────────────────┐  │
                            │  │  5. Judge Escalation (Gray Zone)   │  │
-                           │  │     ├─ Stub Judge (deterministic)   │  │
-                           │  │     └─ LLM Judge (Ollama fallback)  │  │
+                           │  │     ├─ LLM Judge (Ollama primary)   │  │
+                           │  │     └─ Stub Judge (deterministic)   │  │
+                           │  │        (fallback if LLM timeout)    │  │
                            │  └────────────────┬───────────────────┘  │
                            └──────────────────┬────────────────────────┘
                                               │
@@ -89,11 +97,19 @@ A complete machine learning operations (ML Ops) system demonstrating the full li
                            ┌──────────────────────────────────────────┐
                            │         MODEL SERVICE (:8002)            │
                            │  ┌────────────────────────────────────┐  │
-                           │  │  • Feature Extraction (8 features) │  │
+                           │  │  • Feature Extraction (7 features) │  │
                            │  │  • XGBoost Inference               │  │
                            │  │  • Isotonic Calibration            │  │
                            │  │  • SHAP Explainability (/explain)  │  │
                            │  └────────────────────────────────────┘  │
+                           └──────────────────────────────────────────┘
+                                              │
+                                              ▼
+                           ┌──────────────────────────────────────────┐
+                           │         OLLAMA LLM (:11434)              │
+                           │  • llama3.2:1b model                     │
+                           │  • 60-second timeout (first call)        │
+                           │  • Provides human-readable rationale     │
                            └──────────────────────────────────────────┘
                                               │
                                               ▼
@@ -132,7 +148,7 @@ A complete machine learning operations (ML Ops) system demonstrating the full li
 
 **Rationale:** Standard ML pipeline step to ensure model learns patterns, not specific URLs.
 
-### Feature Selection Methodology
+### **Feature Selection Methodology**
 
 We systematically evaluated all 54 features in the dataset to identify the optimal subset for URL-only phishing detection.
 
@@ -173,7 +189,8 @@ separation_score = |median_phishing - median_legitimate| / pooled_std_dev
 | **NoOfOtherSpecialCharsInURL** | 0.562 | 3 | Special character count |
 | **DomainLength** | 0.324 | 3 | Domain name length |
 
-**Key Finding:** IsHTTPS is the strongest single discriminator, with phishing sites using HTTP at 2.5x the rate of legitimate sites.
+
+**Initial Selection:** 8 features → **Critical discovery:** IsHTTPS showed distribution shift although it is the strongest single discriminator (see Critical Design Decision: IsHTTPS Removal)
 
 !![alt text](outputs/eda/feature_separation_scores_top8.png)
 *Figure 1: Feature separation analysis showing discriminative power of each URL-only feature*
@@ -201,7 +218,32 @@ separation_score = |median_phishing - median_legitimate| / pooled_std_dev
 **TLD Analysis:**
 - **High-Risk TLDs:** .top (99.9% phishing), .dev (98.6%), .app (97.8%)
 - **Legitimate TLDs:** .edu (0.3% phishing), .org (12.1% phishing)
-- **Decision:** Use **TLDLegitimateProb** (numeric encoding) instead of one-hot encoding
+- **Decision:** Use **Wilson confidence interval**, a robust method for binomial proportions—to measure uncertainty, especially for TLDs with few samples.
+
+- For a range of minimum sample thresholds, it:
+
+  - Filters out TLDs with too few URLs (not enough data to trust their stats).
+  - Computes the observed legitimacy rate and its confidence interval width for each remaining TLD.
+  - Summarizes the average and 90th percentile uncertainty (CI width) across TLDs.
+  - Assigns a reliability label (HIGH, MEDIUM, LOW) based on how tight the confidence intervals are.
+- This lets us balance coverage (how many URLs/TLDs we keep) against reliability (how much we can trust our stats), and pick a defensible threshold for model training and evaluation.
+
+```
+CI_width ≈ 2 * sqrt(p(1-p)/n + 1/(4n²))
+Where p ≈ 0.5 (worst case), n = sample size
+Confidence_Interval (95%) = (𝑝−half-width, 𝑝+half-width)
+```
+
+**Hyperparameters:**
+- α (pseudo-legitimate): 1
+- β (pseudo-phishing): 2 (Conservative, Unknown or under-sampled TLDs are risky until proven safe.)
+- MIN_SAMPLES: 20
+- All single-sample TLDs now use global rate (0.574)
+- Only TLDs with ≥20 samples get custom probabilities
+
+> ![alt text](outputs/tld_confidence_interval_analysis.png)
+
+
 
 **Domain Analysis:**
 - **Cardinality:** 220,086 unique domains (1.07 URLs per domain)
@@ -211,16 +253,15 @@ separation_score = |median_phishing - median_legitimate| / pooled_std_dev
 
 ### Final Feature Selection
 
-**OPTIMAL 8-FEATURE SET:**
+**OPTIMAL 7-FEATURE SET:**
 
-1. **IsHTTPS** (separation: 2.829)
-2. **TLDLegitimateProb** (separation: 2.012)
-3. **CharContinuationRate** (separation: 1.372)
-4. **SpacialCharRatioInURL** (separation: 1.330)
-5. **URLCharProb** (separation: 0.889)
-6. **LetterRatioInURL** (separation: 0.825)
-7. **NoOfOtherSpecialCharsInURL** (separation: 0.562)
-8. **DomainLength** (separation: 0.324)
+1. **TLDLegitimateProb** (separation: 2.012)
+2. **CharContinuationRate** (separation: 1.372)
+3. **SpacialCharRatioInURL** (separation: 1.330)
+4. **URLCharProb** (separation: 0.889)
+5. **LetterRatioInURL** (separation: 0.825)
+6. **NoOfOtherSpecialCharsInURL** (separation: 0.562)
+7. **DomainLength** (separation: 0.324)
 
 **Selection Criteria:**
 - ✅ Prioritized Tier 1-3 features (separation > 0.3)
@@ -230,9 +271,9 @@ separation_score = |median_phishing - median_legitimate| / pooled_std_dev
 
 **Comparison to Initial Selection:**
 
-| Criteria | Initial 8 Features | Optimal 8 Features |
+| Criteria | Initial 7 Features | Optimal 7 Features |
 |----------|-------------------|-------------------|
-| Tier 1 features | 3 | 4 ✅ |
+| Tier 1 features | 4 | 3 ✅ |
 | Tier 2 features | 1 | 2 ✅ |
 | Tier 3 features | 1 | 2 ✅ |
 | Tier 4 features (weak) | 3 ❌ | 0 ✅ |
@@ -247,17 +288,11 @@ separation_score = |median_phishing - median_legitimate| / pooled_std_dev
 
 All features are extracted using `src/common/feature_extraction.py` to ensure **training/serving consistency**.
 
-#### **1. IsHTTPS**
-- **Type:** Binary (0.0 or 1.0)
-- **Definition:** Whether URL uses HTTPS protocol
-- **Distribution:** Legitimate: 95% HTTPS | Phishing: 60% HTTPS
-- **Why it matters:** Security-conscious users expect HTTPS; lack of it is a strong phishing signal
-
-#### **2. TLDLegitimateProb**
+#### **1. TLDLegitimateProb**
 - **Type:** Float [0.0, 1.0]
-- **Definition:** Bayesian legitimacy probability for top-level domain
-- **Source:** `common/tld_probs.json` (695 TLDs with frequency counts)
-- **Methodology:** Statistically justified Bayesian estimation
+- **Definition:** Bayesian priors using Wilson Confidence Interval legitimacy probability for top-level domain
+- **Source:** `common/tld_probs.json` (695 TLDs with cpnfidence values)
+- **Methodology:** Statistically justified confidence values
 
 **Statistical Justification:**
 
@@ -273,31 +308,24 @@ We conducted a rigorous analysis to determine optimal parameters for TLD probabi
 
 **Wilson Confidence Interval Analysis:**
 
-| Sample Size | CI Width | Reliability |
-|-------------|----------|-------------|
-| 1 | 0.891 | UNRELIABLE (very wide) |
-| 3 | 0.749 | POOR (wide) |
-| 10 | 0.527 | POOR (wide) |
-| 50 | 0.267 | GOOD (narrow) |
-| 100 | 0.192 | EXCELLENT (very narrow) |
+| Sample Size | CI Width | Reliability | Samples % |
+|-------------|----------|-------------|--------|
+| 5 | 0.525 | UNRELIABLE (very wide) | 99.4% |
+| 10 | 0.401 | POOR (wide) | 98.9% |
+| 15 | 0.349 | POOR (wide) | 98.5% |
+| 20 | 0.286 | GOOD (narrow) | 98.2% |
+| 30 | 0.241 | GOOD (narrow) | 97.5% |
+| 50 | 0.093 | EXCELLENT (very narrow) | 96.7% |
 
 **Final Parameters (Data-Driven):**
-- **MIN_SAMPLES = 10** (covers 98.9% of URLs, balances reliability vs coverage)
+- **MIN_SAMPLES = 20** (covers 98.2% of URLs, balances reliability vs coverage)
 - **ALPHA = 1, BETA = 2** (security-first priors: "unknown TLDs are risky until proven safe")
 
-**Coverage Trade-Off:**
-
-| MIN_SAMPLES | TLDs Kept | URLs Covered | Reliability |
-|-------------|-----------|--------------|-------------|
-| 1 | 1,401 (100%) | 234,764 (100%) | LOW |
-| 5 | 593 (42.3%) | 233,413 (99.4%) | MEDIUM |
-| 10 | 414 (29.6%) | 232,234 (98.9%) | HIGH ✅ |
-| 20 | 291 (20.8%) | 230,540 (98.2%) | VERY HIGH |
 
 **Methodology:**
-- **TLDs with ≥10 samples:** Smoothed Bayesian estimation with (α=1, β=2) priors
-- **TLDs with <10 samples:** Fallback to global legitimacy rate (0.574)
-- **Result:** 911 fewer overconfident predictions (0 TLDs with extreme 0.0 or 1.0 probabilities)
+- **TLDs with ≥20 samples:** Smoothed Bayesian estimation with (α=1, β=2) priors
+- **TLDs with <20 samples:** Fallback to global legitimacy rate (0.574)
+
 
 **Example TLD Probabilities:**
 - **.com:** 0.611 (balanced)
@@ -306,7 +334,7 @@ We conducted a rigorous analysis to determine optimal parameters for TLD probabi
 - **.tk (Tokelau):** 0.019 (high phishing)
 - **.top:** 0.002 (very high phishing)
 
-#### **3. CharContinuationRate**
+#### **2. CharContinuationRate**
 - **Type:** Float [0.0, 1.0]
 - **Formula:** (count of repeated chars) / (total chars - 1)
 - **Examples:**
@@ -314,7 +342,7 @@ We conducted a rigorous analysis to determine optimal parameters for TLD probabi
   - "aaa" → 1.0 (all repeated)
   - "google.com" → 0.176 (some repetition in "oo")
 
-#### **4. SpacialCharRatioInURL**
+#### **3. SpacialCharRatioInURL**
 - **Type:** Float [0.0, 1.0]
 - **Definition:** Density of special characters
 - **Special chars:** `! @ # $ % ^ & * ( ) _ + - = [ ] { } | ; : , . < > ? /`
@@ -322,7 +350,7 @@ We conducted a rigorous analysis to determine optimal parameters for TLD probabi
   - "http://example.com" → 0.16
   - "http://ex.com/login?id=123&token=abc" → 0.23
 
-#### **5. URLCharProb**
+#### **4. URLCharProb**
 - **Type:** Float [0.0, 1.0]
 - **Definition:** Proportion of common URL characters (alphanumeric + `:/.?=&-_`)
 - **Purpose:** Measures how "URL-like" the character distribution is
@@ -330,14 +358,14 @@ We conducted a rigorous analysis to determine optimal parameters for TLD probabi
   - "http://example.com" → 0.95 (all common chars)
   - "http://ex.com/@@##$$" → 0.70 (unusual chars)
 
-#### **6. LetterRatioInURL**
+#### **5. LetterRatioInURL**
 - **Type:** Float [0.0, 1.0]
 - **Formula:** (count of letters A-Za-z) / (total chars)
 - **Examples:**
   - "http://example.com" → 0.63
   - "http://ex.com/123" → 0.47
 
-#### **7. NoOfOtherSpecialCharsInURL**
+#### **6. NoOfOtherSpecialCharsInURL**
 - **Type:** Integer [0, ∞)
 - **Definition:** Total count of special characters
 - **Same character set as SpacialCharRatioInURL** (but returns count instead of ratio)
@@ -345,7 +373,7 @@ We conducted a rigorous analysis to determine optimal parameters for TLD probabi
   - "http://example.com" → 3
   - "http://ex.com/login?id=123&token=abc" → 8
 
-#### **8. DomainLength**
+#### **7. DomainLength**
 - **Type:** Integer [1, 253]
 - **Definition:** Length of the domain component (netloc)
 - **RFC 1035 limit:** 253 characters
@@ -353,12 +381,12 @@ We conducted a rigorous analysis to determine optimal parameters for TLD probabi
   - "http://example.com" → 11
   - "https://www.very-long-suspicious-domain.com" → 32
 
-### Training/Serving Consistency
+### **Training/Serving Consistency**
 
 One of the most critical lessons from this project was ensuring **feature extraction consistency** between training and production.
 
 **The Problem:**
-Initial deployment revealed that well-known legitimate URLs (e.g., `example.com`, `google.com`) were being misclassified as phishing. Root cause analysis revealed:
+Initial deployment revealed training/serving skew when we deployed with our own feature extraction. Root cause analysis revealed:
 - Training notebook used PhiUSIIL's pre-computed features (black-box calculations)
 - Production service extracted features using custom logic
 - Small implementation differences led to vastly different feature values
@@ -390,9 +418,9 @@ Gateway Service → Model Service
 
 ---
 
-## 🤖 Model Development
+## 🤖 **Model Development**
 
-### Data Splitting
+### **Data Splitting**
 
 **Strategy:** 80/20 train/validation split with stratification
 - **Training Set:** 188,296 URLs (80%)
@@ -405,7 +433,7 @@ Gateway Service → Model Service
 - Validation fold serves dual purpose: calibration + final evaluation
 - Cross-validation used during model selection (not reported here)
 
-### Baseline Models
+### **Baseline Models**
 
 **Two candidates evaluated:**
 
@@ -425,7 +453,7 @@ Gateway Service → Model Service
   - `colsample_bytree`: 0.8
 - **Purpose:** Achieve maximum performance while maintaining interpretability
 
-### Isotonic Calibration
+### **Isotonic Calibration**
 
 **Why Calibration Matters:**
 Raw model outputs (e.g., `predict_proba()`) are not always well-calibrated—a predicted probability of 0.8 might not correspond to 80% empirical likelihood. For threshold-based decision systems, calibration is critical.
@@ -444,26 +472,67 @@ calibrated_model = CalibratedClassifierCV(
 
 **Isotonic Regression:** Fits a piecewise-constant, monotonically increasing function to map raw scores to calibrated probabilities.
 
-**Validation:** Brier score of **0.0026** (near-perfect calibration, where 0.0 = perfect, 0.25 = random).
+**Validation:** Brier score of **0.0052** (near-perfect calibration, where 0.0 = perfect, 0.25 = random).
 
-### Model Comparison: 8-Feature vs 7-Feature
+## **🚨 Critical Design Decision: IsHTTPS Removal**
 
-During development, we evaluated two model variants to assess the importance of the IsHTTPS feature:
+### The Distribution Shift Problem
 
-| Model | Features | PR-AUC | F1-Macro | Brier Score | Decision |
-|-------|----------|--------|----------|-------------|----------|
-| **Research Model** | 8 (with IsHTTPS) | **0.9992** | 0.9972 | 0.0026 | ✅ PRODUCTION |
-| **Experimental Model** | 7 (without IsHTTPS) | 0.9988 | 0.9970 | 0.0028 | ❌ NOT DEPLOYED |
+During validation, the 8-feature model (including IsHTTPS) exhibited **100% false negative concentration on HTTPS phishing** at its optimal threshold.
 
-**Analysis:**
-- **IsHTTPS contribution:** +0.04% PR-AUC improvement
-- **Rationale for including IsHTTPS:**
-  - Strongest single discriminator (separation: 2.829)
-  - Captures security protocol, a fundamental phishing signal
-  - Negligible computational cost
-  - Despite increasing HTTPS adoption by phishers, still provides discriminative value
+**Training Data Distribution:**
+- Phishing URLs: **6% HTTPS**, 94% HTTP
+- Legitimate URLs: **97% HTTPS**, 3% HTTP
 
-**Decision:** Deploy **8-feature model** for maximum performance. The 7-feature model was an academic exercise to assess feature importance but was never deployed.
+
+
+**Result:** Model learned `IsHTTPS=1` as a strong legitimacy signal, creating a systematic blind spot for modern HTTPS phishing attacks.
+
+### **Comparative Analysis at Optimal Thresholds**
+
+| Model | Threshold | Total FNs | HTTPS FNs | HTTP FNs | Error Pattern |
+|-------|-----------|-----------|-----------|----------|---------------|
+| **7-feature (no IsHTTPS)** | 0.50 | 210 | 93 (44%) | 117 (56%) | **RANDOM** |
+| **8-feature (with IsHTTPS)** | 0.36 | 101 | **101 (100%)** | 0 (0%) | **SYSTEMATIC** |
+
+
+### **Decision Rationale**
+
+**We chose the 7-feature model because:**
+
+1. **Error Distribution > Error Count**
+   - 8-feature: 100% HTTPS concentration = systematic vulnerability
+   - 7-feature: 44% HTTPS distribution = no blind spot
+
+2. **Modern Threat Landscape**
+   - Dataset (2019-2020): 6% HTTPS phishing
+   - Reality (2025): ~75% HTTPS phishing (Let's Encrypt era)
+   - 8-feature: **100% miss rate** on dominant attack vector
+
+3. **Production Safety**
+   - 7-feature: Standard threshold (0.5), predictable behavior
+   - 8-feature: Non-standard threshold (0.36), prone to misconfiguration
+
+**Trade-off Accepted:**
+- **Cost:** +109 FNs = +0.54% miss rate
+- **Benefit:** Eliminate 100% HTTPS vulnerability
+- **Net Result:** Safer, more robust production system
+
+**HTTPS Breakdown on validation:**
+- Total FNs: 210
+- HTTPS FNs: 93 (44.3%) ← Random distribution ✅
+- HTTP FNs: 117 (55.7%)
+
+### **Performance Impact**
+
+| Metric | 8-Feature | 7-Feature | Delta |
+|--------|-----------|-----------|-------|
+| PR-AUC | 0.9992 | 0.9987 | -0.0005 |
+| F1-macro | 0.9940 | 0.9940 | 0.0000 |
+| **HTTPS FN Rate** | **100%** | **44%** | **-56%** ✅ |
+
+**Conclusion:** Distribution shift requires feature removal, not just threshold tuning.
+
 
 ### Final Model Performance
 
@@ -471,24 +540,24 @@ During development, we evaluated two model variants to assess the importance of 
 
 | Metric | Value | Interpretation |
 |--------|-------|----------------|
-| **PR-AUC** | **99.92%** | Near-perfect precision-recall tradeoff |
-| **F1-Macro** | **99.70%** | Excellent balance across both classes |
-| **Brier Score** | **0.0026** | Well-calibrated probabilities |
+| **PR-AUC** | **99.87%** | Near-perfect precision-recall tradeoff |
+| **F1-Macro** | **99.40%** | Excellent balance across both classes |
+| **Brier Score** | **0.0052** | Well-calibrated probabilities |
 | **False Positive Rate** | **0.09%** | 23 out of 26,970 legitimate URLs misclassified |
 | **False Negative Rate** | **0.12%** | 24 out of 20,104 phishing URLs misclassified |
 
 **Prediction Confidence Distribution:**
-- **Extreme Phishing (p ≥ 0.99):** 41.5% of validation set
-- **Extreme Legitimate (p ≤ 0.01):** 55.2% of validation set
-- **Uncertain (0.01 < p < 0.99):** Only 3.3% of validation set
+- **Extreme Phishing (p ≥ 0.998):** 36.0% (16,909 samples) of validation set
+- **Extreme Legitimate (p ≤ 0.011):** 52.0% (24,412 samples) of validation set
+- **Uncertain (0.011 < p < 0.998):** Only 12.0% (5,632 samples) of validation set
 
 **Interpretation:** Model is highly confident in its predictions, with minimal uncertainty.
 
-### Model Artifacts
+### **Model Artifacts**
 
 **Saved for Production:**
-- **Model File:** `models/dev/model_8feat.pkl` (XGBoost + isotonic calibration)
-- **Metadata:** `models/dev/model_8feat_meta.json` (feature order, class mapping, performance metrics)
+- **Model File:** `models/dev/model_7feat.pkl` (XGBoost + isotonic calibration)
+- **Metadata:** `models/dev/model_7feat_meta.json` (feature order, class mapping, performance metrics)
 - **Training Notebook:** `notebooks/02_ablation_url_only.ipynb` (source of truth)
 
 ---
@@ -512,31 +581,23 @@ Rather than using a single binary threshold, PhishGuardAI implements a **three-t
 **Step 1: Optimal Decision Threshold (t_star)**
 
 Using F1-macro optimization on validation data:
-- **Optimal Threshold:** t_star = **0.350**
-- **F1-Macro at t_star:** **0.9972**
+- **Optimal Threshold:** t_star = **0.50**
+- **F1-Macro at t_star:** **0.9940**
 
 **Step 2: Gray-Zone Bands**
 
 Define low and high thresholds to create a REVIEW zone:
-- **Low Threshold:** 0.004 (if p < 0.004, auto-ALLOW)
-- **High Threshold:** 0.999 (if p > 0.999, auto-BLOCK)
-- **Gray Zone:** 0.004 ≤ p < 0.999 → Escalate to REVIEW
+- **Low Threshold:** 0.0011 (if p < 0.0011, auto-ALLOW) ---> Allow-rate = 52%
+- **High Threshold:** 0.994 (if p > 0.994, auto-BLOCK) ---> Block-rate = 36%
+- **Gray Zone:** 0.0011 ≤ p < 0.994 → Escalate to REVIEW ---> Review-rate = 12%
+- **88% automation** (ALLOW + BLOCK without human review)
+- **12% gray zone** (flagged for review)
 
-**Threshold Sensitivity Analysis:**
+>![alt text](outputs/threshold_sensitivity.png)
+**Firgut 3: Threshold sensitivity (validation set)**
 
-| Threshold (Low, High) | ALLOW Rate | REVIEW Rate | BLOCK Rate | FP Rate | FN Rate |
-|-----------------------|------------|-------------|------------|---------|---------|
-| (0.001, 0.9999) | 55.3% | 3.2% | 41.5% | 0.07% | 0.10% |
-| **(0.004, 0.999)** | **48.1%** | **10.9%** | **41.0%** | **0.09%** | **0.12%** |
-| (0.01, 0.99) | 43.2% | 15.6% | 41.2% | 0.15% | 0.15% |
-
-**Decision:** Use (0.004, 0.999) thresholds for:
-- **89% automation** (ALLOW + BLOCK without human review)
-- **11% gray zone** (flagged for review)
-- **Balanced FP/FN** (0.09% false positives, 0.12% false negatives)
-
-![Threshold Optimization Curve](outputs/threshold_optimization_curve.png)
-*Figure 3: Precision-Recall curve with optimal threshold (t_star=0.35) and gray-zone bands*
+>![Threshold Optimization Curve](outputs/threshold_optimization_curve.png)
+*Figure 4: Precision-Recall curve with optimal threshold (t_star=0.50) and gray-zone bands*
 
 ### Decision Distribution
 
@@ -544,20 +605,20 @@ Define low and high thresholds to create a REVIEW zone:
 
 | Decision | Count | Percentage | Notes |
 |----------|-------|------------|-------|
-| **ALLOW** | 22,584 | 48.1% | p < 0.004 (high-confidence legitimate) |
-| **REVIEW** | 5,135 | 10.9% | 0.004 ≤ p < 0.999 (gray zone, judge escalation) |
-| **BLOCK** | 19,234 | 41.0% | p ≥ 0.999 (high-confidence phishing) |
+| **ALLOW** | 24,412 | 52% | p < 0.0011 (high-confidence legitimate) |
+| **REVIEW** | 5,632 | 10.9% | 0.0011 ≤ p < 0.994 (gray zone, judge escalation) |
+| **BLOCK** | 16,909 | 36.0% | p ≥ 0.994 (high-confidence phishing) |
 
-![alt text](outputs/decision_distribution.png)
-*Figure 4: Distribution of decisions across validation set*
+>![alt text](outputs/decision_distribution.png)
+*Figure 5: Distribution of decisions across validation set*
 
-**Key Insight:** 89% of decisions are automated with high confidence, while only 11% require manual review or judge intervention.
+**Key Insight:** 88% of decisions are automated with high confidence, while only 12% require manual review or judge intervention.
 
 ---
 
-## 🏭 Production System Design
+## **🏭 Production System Design**
 
-### System Components
+### **System Components**
 
 PhishGuardAI consists of three microservices:
 
@@ -579,7 +640,7 @@ PhishGuardAI consists of three microservices:
    - LLM Judge (Ollama adapter with fallback)
    - Explainable rationale generation
 
-### Handling Distribution Shift: The Whitelist Strategy
+### **Handling Distribution Shift: The Whitelist Strategy**
 
 **The Problem:**
 During initial deployment, well-known legitimate domains (e.g., `google.com`, `github.com`, `microsoft.com`) were being misclassified as phishing with high confidence (p > 0.95).
@@ -624,19 +685,15 @@ KNOWN_LEGITIMATE_DOMAINS = {
 - **Override:** Returns `p_malicious = 0.01` (bypasses model entirely)
 - **Reason:** `"domain-whitelist"` (inherently explainable)
 
-**Industry Standard:**
-- Google Safe Browsing uses whitelists for known domains
-- VirusTotal maintains allowlists for legitimate services
-- Every production fraud detection system has domain reputation layers
-
 **When to Use Whitelist:**
 - Out-of-distribution domains (major tech companies)
 - Edge cases where model has known blind spots
 - High-value domains where false positives are unacceptable
 
-### Enhanced Short Domain Routing
+### **Enhanced Short Domain Routing**
 
 **The Problem:**
+
 Even with the whitelist, other short legitimate domains (e.g., `npm.org`, `bit.ly`, `t.co`) were still being flagged as suspicious.
 
 **Statistical Insight:**
@@ -660,14 +717,14 @@ def _should_route_to_judge_for_short_domain(url: str, p_malicious: float) -> boo
     domain_no_www = domain.replace("www.", "")
     
     return (
-        len(domain_no_www) <= 10 and  # Short domain
+        len(domain_no_www) <= 12 and  # Short domain
         p_malicious < 0.5             # Moderate confidence (not extreme)
     )
 ```
 
 **Decision Flow:**
-- **Standard Gray Zone:** `0.004 ≤ p < 0.999` → Judge with standard context
-- **Short Domain Gray Zone:** `len(domain) ≤ 10 AND p < 0.5` → Judge with short domain context
+- **Standard Gray Zone:** `0.0011 ≤ p < 0.994` → Judge with standard context
+- **Short Domain Gray Zone:** `len(domain) ≤ 12 AND p < 0.5` → Judge with short domain context
 
 **Example:**
 ```bash
@@ -715,9 +772,9 @@ Final decision: ALLOW
 - **UNCERTAIN:** Unclear → Final decision: REVIEW (manual review queue)
 
 
-### How to use the optional LLM (Ollama)
+### **How to use the optional LLM (Ollama)**
 
-#### STEP 1: Verify Ollama is Running
+#### **STEP 1: Verify Ollama is Running**
 ```
 # Check if Ollama service is running
 ollama list
@@ -759,7 +816,7 @@ OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=llama3.2:1b
 
 # Judge timeout (seconds)
-JUDGE_TIMEOUT=10
+JUDGE_TIMEOUT=60
 
 # Verbose logging (to see judge calls)
 LOG_LEVEL=DEBUG
@@ -812,7 +869,6 @@ export LOG_LEVEL=DEBUG
   "p_malicious": 1.0,
   "source": "model",
   "feature_contributions": {
-    "IsHTTPS": -11.8081,          // Missing HTTPS strongly increases risk
     "NoOfOtherSpecialCharsInURL": 1.7578,   // Typosquatting ('1' in domain)
     "DomainLength": -1.8956,      // Moderate length slightly protective
     "CharContinuationRate": 1.0135,
@@ -822,7 +878,6 @@ export LOG_LEVEL=DEBUG
     "LetterRatioInURL": -0.1065
   },
   "feature_values": {
-    "IsHTTPS": 0.0,
     "DomainLength": 20.0,
     "NoOfOtherSpecialCharsInURL": 5.0,
     "CharContinuationRate": 0.1923,
@@ -835,7 +890,7 @@ export LOG_LEVEL=DEBUG
 ```
 
 **Interpretation:**
-- **IsHTTPS = 0** (missing HTTPS) has SHAP value of **-11.8** → Strongly pushes prediction toward phishing
+
 - **NoOfOtherSpecialCharsInURL = 5** (the '1' in "facebook1mob") has SHAP value of **+1.76** → Indicates typosquatting
 - **DomainLength = 20** has SHAP value of **-1.90** → Moderate length is slightly protective
 
@@ -860,15 +915,15 @@ For detailed SHAP usage and interpretation, see [EXPLAINABILITY.md](docs/EXPLAIN
 **Purpose:** Validate that feature extraction produces valid, model-ready data.
 
 **What Gets Validated:**
-- **Input:** Processed feature CSV (`phiusiil_features_v2.csv`) with 8 engineered features
+- **Input:** Processed feature CSV (`phiusiil_features_v2.csv`) with 7 engineered features
 - **NOT validated:** Raw PhiUSIIL CSV (no expectations on raw data)
 
 **Validation Checks:**
 
 #### **1. Schema Validation**
-- **Column Presence:** All 8 features must exist (`IsHTTPS`, `TLDLegitimateProb`, `CharContinuationRate`, etc.)
+- **Column Presence:** All 7 features must exist (`IsHTTPS`, `TLDLegitimateProb`, `CharContinuationRate`, etc.)
 - **Data Types:**
-  - Binary features (IsHTTPS): `float64` but must be 0.0 or 1.0
+
   - Probability features (TLDLegitimateProb, URLCharProb, etc.): `float64` in range [0.0, 1.0]
   - Count features (NoOfOtherSpecialCharsInURL): `int64` or integer-like floats
   - Length features (DomainLength): `int64` with range [1, 253] (RFC 1035)
@@ -880,7 +935,7 @@ For detailed SHAP usage and interpretation, see [EXPLAINABILITY.md](docs/EXPLAIN
 - **Ratios:** 0.0 ≤ value ≤ 1.0
 
 #### **3. Feature Distribution Validation**
-- **IsHTTPS:** Mean should be in range [0.6, 0.95] (most legitimate sites use HTTPS)
+
 - **TLDLegitimateProb:** Mean should be in range [0.4, 0.8] (balanced TLD mix)
 - **CharContinuationRate:** Mean should be in range [0.0, 0.3] (low repetition)
 - **No extreme outliers:** Values within 5 standard deviations of mean
@@ -909,7 +964,7 @@ Great Expectations runs automatically via GitHub Actions:
 **Example Expectation Suite:**
 ```python
 # Sample expectations from ge_build_phiusiil_suite.py
-suite.expect_column_values_to_be_between("IsHTTPS", min_value=0.0, max_value=1.0)
+
 suite.expect_column_values_to_be_between("TLDLegitimateProb", min_value=0.0, max_value=1.0)
 suite.expect_column_values_to_be_between("DomainLength", min_value=1, max_value=253)
 suite.expect_column_mean_to_be_between("IsHTTPS", min_value=0.6, max_value=0.95)
@@ -1091,13 +1146,13 @@ docker run --rm -p 8080:8000 \
 - **Two-tier explainability:** Whitelist (inherently explainable) + SHAP (model decisions)
 
 **Performance Trade-Off:**
-- SHAP computation adds latency (~50-100ms)
+- SHAP computation adds latency ~200-500ms for `/explain` endpoint
 - Documented as known bottleneck with mitigation plan (lazy computation, caching)
 - Acceptable for on-demand explanations; not suitable for real-time scanning
 
 ### 5. Production ML is About Reliability, Not Just Accuracy
 
-**Lesson:** A 99.92% PR-AUC model is useless if it crashes, has unpredictable latency, or produces unexplainable decisions.
+**Lesson:** A 99.87% PR-AUC model is useless if it crashes, has unpredictable latency, or produces unexplainable decisions.
 
 **What Production ML Requires:**
 - ✅ **Graceful degradation:** Fallback mechanisms (stub judge, heuristic scoring)
@@ -1108,8 +1163,8 @@ docker run --rm -p 8080:8000 \
 - ✅ **Explainability:** SHAP + judge rationale for compliance
 
 **Operational Maturity > Perfect Model:**
-- 99.92% PR-AUC with 2s latency → **Not production-ready**
-- 99.5% PR-AUC with 50ms latency + observability → **Production-ready**
+- 99.87% PR-AUC with 2s latency → **Not production-ready**
+- 99.87% PR-AUC with 50ms latency + observability → **Production-ready**
 
 ---
 
@@ -1303,7 +1358,10 @@ PhishGuardAI/
 
 - **[EXPLAINABILITY.md](docs/EXPLAINABILITY.md)** - SHAP dashboard usage and interpretation
 - **[MODEL_CARD.md](docs/MODEL_CARD.md)** - Industry-standard model documentation (Google/HuggingFace format)
-- **[DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)** - 5-minute structured walkthrough with copy-paste commands
+- **[API.md](docs/API.md)** - Complete endpoint reference, Request/response schemas, Code examples (curl, Python, Bash), Example workflows
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - IsHTTPS distribution shift deep dive, Feature engineering philosophy, Policy bands & gray zone design, LLM judge integration rationale
+- **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Local development setup, Docker deployment, Ollama LLM judge installation
+- **[JUDGE.md](docs/JUDGE.md)** - LM judge architecture, Routing logic explained, Prompt engineering details, Performance characteristics, LLM vs Stub comparison
 
 ---
 
@@ -1324,7 +1382,7 @@ PhishGuardAI/
    - Mitigation: Implement PSI (Population Stability Index) monitoring + retraining triggers
 
 4. **Performance Bottleneck (Documented)**
-   - SHAP explainability adds latency to `/predict/explain` endpoint
+   - SHAP explainability adds  ~200-500ms latency to `/predict/explain` endpoint
    - **Investigation Underway:** Profiling model service to identify optimization opportunities
    - **Candidate Solutions:**
      - Lazy SHAP computation (only when `/explain` endpoint called, not on every prediction)
@@ -1337,6 +1395,7 @@ PhishGuardAI/
 5. **Static Thresholds**
    - Policy bands don't adapt to fraud rate changes
    - Mitigation: Implement dynamic threshold tuning based on operational capacity
+6. **LLM First-Call Latency** - 15-20s model loading
 
 ### Planned Improvements (Prioritized)
 

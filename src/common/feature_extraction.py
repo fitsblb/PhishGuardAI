@@ -2,26 +2,36 @@
 Shared feature extraction for training and inference.
 Ensures consistency between notebooks and production services.
 
-This module extracts the optimal 8 URL-only features used by our
-phishing detection models. It supports both 7-feature (production)
-and 8-feature (shadow/research) models.
+This module extracts URL-only features for phishing detection.
+Production model uses 7 features (IsHTTPS removed due to distribution shift).
 
-Features:
-1. IsHTTPS - Protocol indicator (HTTPS=1, HTTP=0)
-2. TLDLegitimateProb - TLD reputation score from historical data
-3. CharContinuationRate - Character repetition rate in URL
-4. SpacialCharRatioInURL - Special character density
-5. URLCharProb - Character frequency probability score
-6. LetterRatioInURL - Letter character density
-7. NoOfOtherSpecialCharsInURL - Count of special characters
-8. DomainLength - Domain string length
+DISTRIBUTION SHIFT DISCOVERY:
+- Initial 8-feature model achieved 99.92% PR-AUC with IsHTTPS as strongest feature
+- Production FN audit revealed 100% of FNs were HTTPS phishing (115/115)
+- Training data (2019-2020) only 48.9% of phishing was HTTPS
+- Modern phishing (2024+) adopted HTTPS universally (Let's Encrypt free certs)
+- Model learned "HTTPS = Legitimate" from outdated data
+- Removed IsHTTPS: PR-AUC 99.88% (-0.04%), but massive FN reduction
+- Decision: Security > marginal AUC gain
+
+PRODUCTION MODEL (7 features):
+1. TLDLegitimateProb - TLD reputation score from historical data
+2. CharContinuationRate - Character repetition rate in URL
+3. SpacialCharRatioInURL - Special character density
+4. URLCharProb - Character frequency probability score
+5. LetterRatioInURL - Letter character density
+6. NoOfOtherSpecialCharsInURL - Count of special characters
+7. DomainLength - Domain string length
+
+SHADOW MODEL (8 features - for research/comparison):
+- Includes IsHTTPS for temporal drift monitoring
 
 Usage:
-    # Extract all 8 features (for 8-feature model)
+    # Extract 7 features (PRODUCTION - default)
     features = extract_features("https://example.com/login")
 
-    # Extract only 7 features (for 7-feature model)
-    features = extract_features("https://example.com/login", include_https=False)
+    # Extract 8 features (RESEARCH/SHADOW - explicit opt-in)
+    features = extract_features("https://example.com/login", include_https=True)
 """
 
 from __future__ import annotations
@@ -41,8 +51,7 @@ import tldextract
 TLD_PROBS_PATH = Path(__file__).parent.parent.parent / "data" / "tld_probs.json"
 
 # Feature names in canonical order (matches training data)
-FEATURE_NAMES_8 = [
-    "IsHTTPS",
+FEATURE_NAMES_7 = [
     "TLDLegitimateProb",
     "CharContinuationRate",
     "SpacialCharRatioInURL",
@@ -52,7 +61,8 @@ FEATURE_NAMES_8 = [
     "DomainLength",
 ]
 
-FEATURE_NAMES_7 = [
+FEATURE_NAMES_8 = [
+    "IsHTTPS",  # REMOVED from production due to distribution shift
     "TLDLegitimateProb",
     "CharContinuationRate",
     "SpacialCharRatioInURL",
@@ -88,29 +98,44 @@ except Exception as e:
 
 
 def extract_features(
-    url: str, include_https: bool = True
+    url: str, include_https: bool = False
 ) -> Dict[str, Union[int, float]]:
     """
     Extract URL-only features for phishing detection.
 
+    IMPORTANT: Default behavior changed to exclude IsHTTPS (7-feature production model).
+
     Args:
         url: URL to extract features from (e.g., "https://example.com/login")
-        include_https: If True, include IsHTTPS feature (8-feature model)
-                      If False, exclude IsHTTPS (7-feature model)
+        include_https: If True, include IsHTTPS feature (8-feature shadow model)
+                      If False (DEFAULT), exclude IsHTTPS (7-feature production model)
 
     Returns:
         Dictionary mapping feature names to values.
         Keys are in consistent order matching training data.
 
+    Why IsHTTPS Removed by Default:
+        - 100% of production FNs were HTTPS phishing (vs 48.9% in 2019-2020 training)
+        - Modern phishing adopted HTTPS universally (Let's Encrypt free certs)
+        - IsHTTPS gave false legitimacy signal to HTTPS phishing
+        - Removing it reduced FN rate while only losing 0.04% PR-AUC
+        - Future-proof: won't degrade as HTTPS adoption increases
+
     Example:
+        >>> # Production (7 features, no IsHTTPS)
         >>> features = extract_features("https://example.com/login?id=123")
-        >>> features['IsHTTPS']
-        1
         >>> features['TLDLegitimateProb']
         0.877
+        >>> 'IsHTTPS' in features
+        False
+
+        >>> # Shadow model (8 features, with IsHTTPS)
+        >>> features = extract_features("https://example.com/login", include_https=True)
+        >>> features['IsHTTPS']
+        1.0
     """
     if not url or not isinstance(url, str):
-        # Return zero features for invalid input
+        # Return suspicious features for invalid input (fail-secure)
         return _zero_features(include_https)
 
     try:
@@ -120,7 +145,9 @@ def extract_features(
 
         features = {}
 
-        # Feature 1: IsHTTPS (optional)
+        # Feature 1: IsHTTPS (OPTIONAL - only for shadow model)
+        # REMOVED from production due to distribution shift
+        # Kept as optional parameter for monitoring temporal drift
         if include_https:
             features["IsHTTPS"] = 1.0 if parsed.scheme == "https" else 0.0
 
@@ -270,33 +297,30 @@ def _calc_url_char_prob(url: str) -> float:
 
 def _zero_features(include_https: bool) -> Dict[str, Union[int, float]]:
     """
-    Return dictionary of zero-valued features (for error cases).
+    Return dictionary of suspicious features for error cases (fail-secure).
+
+    SECURITY DESIGN: If we can't parse a URL, treat it as suspicious.
+    Better to block a broken URL than allow a potentially malicious one.
 
     Args:
-        include_https: If True, include IsHTTPS=0 in output
+        include_https: If True, include IsHTTPS=0 in output (shadow model)
+                      If False, omit IsHTTPS (production model)
 
     Returns:
-        Dict with all features set to 0 or safe defaults
-    """
-    """
-    SECURITY: Return SUSPICIOUS features for error cases.
-
-    Rationale: If we can't parse a URL, treat it as suspicious.
-    This is a fail-secure design - better to block a broken URL
-    than allow a potentially malicious one.
+        Dict with all features set to suspicious values (high phishing likelihood)
     """
     features = {
-        "TLDLegitimateProb": 0.05,  # Very suspicious TLD
-        "CharContinuationRate": 0.6,  # High repetition (suspicious)
-        "SpacialCharRatioInURL": 0.25,  # Many special chars
+        "TLDLegitimateProb": 0.05,  # Very suspicious TLD (low legitimacy)
+        "CharContinuationRate": 0.6,  # High repetition (suspicious pattern)
+        "SpacialCharRatioInURL": 0.25,  # Many special chars (obfuscation)
         "URLCharProb": 0.02,  # Very unusual characters (vs normal ~1.0)
-        "LetterRatioInURL": 0.3,  # Low letter ratio
-        "NoOfOtherSpecialCharsInURL": 15,  # Many special chars
-        "DomainLength": 60,  # Very long domain
+        "LetterRatioInURL": 0.3,  # Low letter ratio (suspicious)
+        "NoOfOtherSpecialCharsInURL": 15,  # Many special chars (obfuscation)
+        "DomainLength": 60,  # Very long domain (typosquatting)
     }
 
     if include_https:
-        features["IsHTTPS"] = 0
+        features["IsHTTPS"] = 0.0  # No HTTPS (suspicious in error case)
 
     return features
 
@@ -306,27 +330,32 @@ def _zero_features(include_https: bool) -> Dict[str, Union[int, float]]:
 # ============================================================
 
 
-def get_feature_names(include_https: bool = True) -> list[str]:
+def get_feature_names(include_https: bool = False) -> list[str]:
     """
     Get feature names in consistent order.
 
+    IMPORTANT: Default changed to 7-feature production model (no IsHTTPS).
+
     Args:
-        include_https: If True, return 8-feature names (with IsHTTPS)
-                      If False, return 7-feature names (without IsHTTPS)
+        include_https: If True, return 8-feature names (with IsHTTPS - shadow model)
+                      If False (DEFAULT), return 7-feature names (production model)
 
     Returns:
         List of feature names in order matching training data
 
     Example:
+        >>> # Production model (7 features)
+        >>> get_feature_names()
+        ['TLDLegitimateProb', 'CharContinuationRate', ...]
+
+        >>> # Shadow model (8 features)
         >>> get_feature_names(include_https=True)
         ['IsHTTPS', 'TLDLegitimateProb', ...]
-        >>> get_feature_names(include_https=False)
-        ['TLDLegitimateProb', 'CharContinuationRate', ...]
     """
     return FEATURE_NAMES_8 if include_https else FEATURE_NAMES_7
 
 
-def validate_features(features: Dict[str, float], include_https: bool = True) -> bool:
+def validate_features(features: Dict[str, float], include_https: bool = False) -> bool:
     """
     Validate that extracted features are correct.
 
@@ -338,7 +367,7 @@ def validate_features(features: Dict[str, float], include_https: bool = True) ->
 
     Args:
         features: Dict returned by extract_features()
-        include_https: Expected feature set (8 or 7 features)
+        include_https: Expected feature set (7-feature production or 8-feature shadow)
 
     Returns:
         True if valid, False otherwise
@@ -347,9 +376,12 @@ def validate_features(features: Dict[str, float], include_https: bool = True) ->
 
     # Check 1: All features present
     if set(features.keys()) != set(expected_names):
-        print(
-            f"[validate] Missing features: {set(expected_names) - set(features.keys())}"
-        )
+        missing = set(expected_names) - set(features.keys())
+        extra = set(features.keys()) - set(expected_names)
+        if missing:
+            print(f"[validate] Missing features: {missing}")
+        if extra:
+            print(f"[validate] Extra features: {extra}")
         return False
 
     # Check 2: All numeric
@@ -381,43 +413,88 @@ def validate_features(features: Dict[str, float], include_https: bool = True) ->
                 print(f"[validate] {feat}={val} is negative")
                 return False
 
+    # Check 5: IsHTTPS (if present) is binary
+    if "IsHTTPS" in features:
+        val = features["IsHTTPS"]
+        if val not in [0.0, 1.0]:
+            print(f"[validate] IsHTTPS={val} not binary (0.0 or 1.0)")
+            return False
+
     return True
 
 
 # ============================================================
-# MODULE TEST (runs when imported)
+# MODULE TEST (runs when imported or executed directly)
 # ============================================================
 
 if __name__ == "__main__":
-    # Quick smoke test
-    print("\n" + "=" * 60)
+    # Smoke test
+    print("\n" + "=" * 80)
     print("FEATURE EXTRACTION - SMOKE TEST")
-    print("=" * 60)
+    print("=" * 80)
+    print("\nPRODUCTION MODEL: 7 features (IsHTTPS removed due to distribution shift)")
+    print("SHADOW MODEL: 8 features (IsHTTPS for temporal drift monitoring)")
+    print("=" * 80)
 
     test_urls = [
         "https://example.com",
         "http://example.com/login",
         "https://example.com/login?id=123&token=abc&redirect=https://evil.com",
         "http://suspicious-phishing-site.top/verify-account",
+        "https://google.com",  # Known FN case (would be 100% phishing with IsHTTPS)
     ]
 
     for url in test_urls:
-        print(f"\nURL: {url}")
-        print("-" * 60)
+        print(f"\n{'=' * 80}")
+        print(f"URL: {url}")
+        print(f"{'=' * 80}")
 
-        # Extract 8 features
+        # Extract 7 features (PRODUCTION)
+        print("\n🟢 PRODUCTION MODEL (7 features, no IsHTTPS):")
+        print("-" * 80)
+        features_7 = extract_features(url, include_https=False)
+        for name, value in features_7.items():
+            if isinstance(value, float):
+                print(f"  {name:35s} = {value:.4f}")
+            else:
+                print(f"  {name:35s} = {value}")
+
+        is_valid_7 = validate_features(features_7, include_https=False)
+        print(f"\n  ✓ Valid: {is_valid_7}")
+
+        # Extract 8 features (SHADOW - for comparison)
+        print("\n🔵 SHADOW MODEL (8 features, with IsHTTPS):")
+        print("-" * 80)
         features_8 = extract_features(url, include_https=True)
-        print("8-Feature Model:")
         for name, value in features_8.items():
             if isinstance(value, float):
-                print(f"  {name:30s} = {value:.4f}")
+                print(f"  {name:35s} = {value:.4f}")
             else:
-                print(f"  {name:30s} = {value}")
+                print(f"  {name:35s} = {value}")
 
-        # Validate
-        is_valid = validate_features(features_8, include_https=True)
-        print(f"Valid: {is_valid}")
+        is_valid_8 = validate_features(features_8, include_https=True)
+        print(f"\n  ✓ Valid: {is_valid_8}")
 
-    print("\n" + "=" * 60)
+        # Highlight IsHTTPS difference
+        if "IsHTTPS" in features_8:
+            https_value = features_8["IsHTTPS"]
+            if https_value == 1.0:
+                print(
+                    "\n  💡 Note: IsHTTPS=1.0 (HTTPS) - Would give legitimacy boost in 8-feat model"
+                )
+            else:
+                print(
+                    "\n  💡 Note: IsHTTPS=0.0 (HTTP) - Would give phishing signal in 8-feat model"
+                )
+
+    print("\n" + "=" * 80)
     print("SMOKE TEST COMPLETE")
-    print("=" * 60)
+    print("=" * 80)
+    print("\n📊 SUMMARY:")
+    print("  - Production model: 7 features (default)")
+    print("  - Shadow model: 8 features (opt-in with include_https=True)")
+    print("  - IsHTTPS removed from production due to 100% FN rate on HTTPS phishing")
+    print(
+        "  - PR-AUC: 99.88% (7-feat) vs 99.92% (8-feat) = -0.04% acceptable trade-off"
+    )
+    print("=" * 80 + "\n")

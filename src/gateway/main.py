@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import pathlib
 from typing import Any, Dict, Literal, Optional
 
 import requests
@@ -58,14 +59,30 @@ def _check_whitelist(url: str) -> bool:
     try:
         from urllib.parse import urlparse
 
-        domain = urlparse(url).netloc.lower()
+        print(f"[WHITELIST DEBUG] Checking URL: {url}")
+
+        # Normalize URL: add scheme if missing
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url
+            print(f"[WHITELIST DEBUG] Normalized to: {url}")
+
+        parsed = urlparse(url)
+        domain = parsed.netloc.lower()
+        print(f"[WHITELIST DEBUG] Extracted domain: {domain}")
+
         # Strip www. prefix for comparison
         domain_no_www = domain.replace("www.", "")
-        return (
+        print(f"[WHITELIST DEBUG] Domain without www: {domain_no_www}")
+
+        is_whitelisted = (
             domain in KNOWN_LEGITIMATE_DOMAINS
             or domain_no_www in KNOWN_LEGITIMATE_DOMAINS
         )
-    except Exception:
+        print(f"[WHITELIST DEBUG] Is whitelisted? {is_whitelisted}")
+
+        return is_whitelisted
+    except Exception as e:
+        print(f"[WHITELIST DEBUG] Exception: {e}")
         return False
 
 
@@ -153,6 +170,7 @@ class PredictOut(BaseModel):
     thresholds: Dict[str, float]
     judge: Optional[Dict[str, Any]] = None
     source: Literal["model", "heuristic", "whitelist"]
+    features: Optional[Dict[str, float]] = None
 
 
 # --------- tiny deterministic URL helpers (fallback heuristic) ---------
@@ -201,16 +219,18 @@ def _heuristic_pmal(url: str) -> float:
     return max(0.0, min(1.0, risk))
 
 
-def _call_model_service(url: str, extras: Dict[str, Any]) -> Optional[float]:
+def _call_model_service(
+    url: str, extras: Dict[str, Any]
+) -> tuple[Optional[float], Optional[Dict[str, float]]]:
     """
-    Call the model service to get p_malicious prediction.
-    Returns None if service unavailable or on error.
+    Call the model service to get p_malicious prediction and features.
+    Returns (p_malicious, features) tuple. Both None if service unavailable or on error.
     """
     model_url = os.environ.get("MODEL_SVC_URL")
     print(f"[DEBUG] MODEL_SVC_URL: {model_url}")  # Debug
     if not model_url:
         print("[DEBUG] No MODEL_SVC_URL set")  # Debug
-        return None
+        return None, None  # ← Changed: return tuple
 
     try:
         # Use model service API schema: {"url": "..."}
@@ -221,21 +241,26 @@ def _call_model_service(url: str, extras: Dict[str, Any]) -> Optional[float]:
         response.raise_for_status()
         data = response.json()
         print(f"[DEBUG] Response data: {data}")  # Debug
+
         p_malicious = data.get("p_malicious")
+        features = data.get("features", {})  # ← NEW: Extract features!
 
         # Validate probability is in valid range [0.0, 1.0]
         if p_malicious is None or not isinstance(p_malicious, (int, float)):
             print(f"[DEBUG] Invalid p_malicious: {p_malicious}")  # Debug
-            return None
+            return None, None  # ← Changed: return tuple
         if not (0.0 <= p_malicious <= 1.0):
             print(f"[DEBUG] p_malicious out of range: {p_malicious}")  # Debug
-            return None
+            return None, None  # ← Changed: return tuple
 
-        print(f"[DEBUG] Model service success: {p_malicious}")  # Debug
-        return float(p_malicious)
+        print(
+            f"[DEBUG] Model service success: p_malicious={p_malicious}, "
+            f"features={len(features)}"
+        )  # Debug
+        return float(p_malicious), features  # ← Changed: return tuple
     except Exception as e:
         print(f"[DEBUG] Model service error: {e}")  # Debug
-        return None
+        return None, None
 
 
 # --------- Routes ---------
@@ -269,24 +294,31 @@ def predict(payload: PredictIn):
             },
             judge=None,
             source="whitelist",
+            features=None,  # ← Already correct!
         )
 
     # PHASE 2: Determine p_malicious source
     extras = payload.extras.model_dump() if payload.extras else {}
+    features_dict: Optional[Dict[str, float]] = None  # ← NEW: Initialize features
 
     if payload.p_malicious is not None:
         # Client provided probability
         p_mal = float(payload.p_malicious)
         src: Literal["model", "heuristic", "whitelist"] = "model"
+        features_dict = None  # ← NEW: No features from client-provided prediction
     else:
         # Try model service first
-        p_from_svc = _call_model_service(payload.url, extras)
+        p_from_svc, features_from_svc = _call_model_service(
+            payload.url, extras
+        )  # ← Changed: unpack tuple
         if p_from_svc is not None:
             p_mal = p_from_svc
+            features_dict = features_from_svc  # ← NEW: Capture features!
             src = "model"
         else:
             # Fallback to heuristic
             p_mal = _heuristic_pmal(payload.url)
+            features_dict = None  # ← NEW: No features from heuristic
             src = "heuristic"
 
     # PHASE 3: Apply business logic and judge
@@ -305,6 +337,7 @@ def predict(payload: PredictIn):
         },
         judge=(None if outcome.judge is None else outcome.judge.model_dump()),
         source=src,
+        features=features_dict,  # ← NEW: Return features!
     )
 
 
@@ -324,7 +357,24 @@ def stats_reset():
 def explain(payload: PredictIn):
     """
     Proxy to model service /predict/explain endpoint for SHAP explainability.
+    Checks whitelist first - whitelisted URLs don't need SHAP analysis.
     """
+    # PHASE 1: Fast-path whitelist check
+    if _check_whitelist(payload.url):
+        return {
+            "url": payload.url,
+            "p_malicious": 0.01,  # Very low risk for whitelisted domains
+            "whitelisted": True,
+            "message": "URL is on domain whitelist - no SHAP analysis needed",
+            "source": "whitelist",
+            "model_name": "domain-whitelist",
+            "explanation": "This URL belongs to a known legitimate domain and is "
+            "automatically allowed",
+            "note": "Whitelisted domains bypass ML analysis for performance and "
+            "accuracy",
+        }
+
+    # PHASE 2: Not whitelisted - proceed with SHAP analysis
     model_url = os.environ.get("MODEL_SVC_URL")
     if not model_url:
         return JSONResponse(
@@ -339,7 +389,10 @@ def explain(payload: PredictIn):
             timeout=10.0,  # SHAP computation can take longer
         )
         response.raise_for_status()
-        return response.json()
+        result = response.json()
+        # Add whitelist flag to response
+        result["whitelisted"] = False
+        return result
     except requests.exceptions.RequestException as e:
         return JSONResponse(
             status_code=503, content={"error": f"Model service error: {str(e)}"}
@@ -351,7 +404,6 @@ def explain_dashboard():
     """
     Serve the explainability dashboard HTML page.
     """
-    import pathlib
 
     # In Docker, static files are copied to /app/src/gateway/static/
     # When running locally, they're relative to this file
