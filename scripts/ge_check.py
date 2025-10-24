@@ -1,6 +1,6 @@
 """
-Lightweight data contract check for PhishGuard 8-feature model.
-Validates the 8 features documented in docs/FEATURE_EXTRACTION.md
+Lightweight data contract check for PhishGuard 7-feature model.
+Validates the 7 features documented in docs/FEATURE_EXTRACTION.md
 Fails (exit 1) if required columns are missing or out-of-range.
 
 Run:
@@ -19,12 +19,10 @@ import numpy as np
 import pandas as pd
 
 DEF_CSV = "data/processed/phiusiil_features_v2.csv"
-META_PATH = Path("models/dev/model_8feat_meta.json")  # Updated to 8-feature model
+META_PATH = Path("models/dev/model_7feat_meta.json")  # Updated to 7-feature model
 
-# 8-Feature Model: All features are required for production model
+# 7-Feature Model: All features are required for production model
 REQUIRED_FEATURES = {
-    # Binary features
-    "IsHTTPS": ("binary", 0, 1),
     # Probability features [0, 1]
     "TLDLegitimateProb": ("float", 0.0, 1.0),
     "CharContinuationRate": ("float", 0.0, 1.0),
@@ -97,11 +95,11 @@ def main():
     df = pd.read_csv(csv_path)
     ok(f"Loaded {csv_path} → shape={df.shape}")
 
-    # 1) Required columns present (all 8 features must be present)
+    # 1) Required columns present (all 7 features must be present)
     missing = [c for c in REQUIRED_FEATURES if c not in df.columns]
     if missing:
         fail(f"Missing required features: {missing}")
-    ok("All 8 required features present")
+    ok("All 7 required features present")
 
     # 2) Check for deprecated features (warn only)
     deprecated_present = [c for c in DEPRECATED_FEATURES if c in df.columns]
@@ -139,7 +137,7 @@ def main():
             if dups:
                 warn(f"Found {dups} duplicate URLs based on column '{key}'")
 
-    # 5) Feature order compatibility with 8-feature model metadata
+    # 5) Feature order compatibility with 7-feature model metadata
     if META_PATH.exists():
         meta = json.loads(META_PATH.read_text(encoding="utf-8"))
         feat_order = meta.get("feature_order") or []
@@ -147,10 +145,10 @@ def main():
             missing_for_model = [c for c in feat_order if c not in df.columns]
             if missing_for_model:
                 errors.append(
-                    f"8-feature model requires missing columns: {missing_for_model}"
+                    f"7-feature model requires missing columns: {missing_for_model}"
                 )
             else:
-                ok("CSV matches 8-feature model requirements")
+                ok("CSV matches 7-feature model requirements")
 
             # Check feature order matches exactly
             required_feat = list(REQUIRED_FEATURES.keys())
@@ -187,7 +185,7 @@ def main():
             print(f" ❌ {e}")
         fail(f"{len(errors)} violation(s) found")
 
-    print("\n✅ PhishGuard 8-Feature Data Contract PASSED")
+    print("\n✅ PhishGuard 7-Feature Data Contract PASSED")
     print(f"✅ All {len(REQUIRED_FEATURES)} features validated")
     print(f"✅ {total_rows:,} rows ready for model training/inference")
 

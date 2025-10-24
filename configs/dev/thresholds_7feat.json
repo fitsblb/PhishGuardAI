@@ -1,5 +1,14 @@
 {
-  "model": "xgb",
+  "model": "xgb_7feat",
+  "features": [
+    "TLDLegitimateProb",
+    "CharContinuationRate",
+    "SpacialCharRatioInURL",
+    "URLCharProb",
+    "LetterRatioInURL",
+    "NoOfOtherSpecialCharsInURL",
+    "DomainLength"
+  ],
   "class_mapping": {
     "phish": 0,
     "legit": 1
@@ -19,9 +28,6 @@
       "review_rate": 0.11994973697101356,
       "block_rate": 0.36012608353033887
     }
-  },
-  "data": {
-    "file": "data\\processed\\phiusiil_features_v2.csv"
   },
   "seed": 42
 }

@@ -1,14 +1,14 @@
 {
   "model": "xgb_8feat",
   "features": [
-    "IsHTTPS",
     "TLDLegitimateProb",
     "CharContinuationRate",
     "SpacialCharRatioInURL",
     "URLCharProb",
     "LetterRatioInURL",
     "NoOfOtherSpecialCharsInURL",
-    "DomainLength"
+    "DomainLength",
+    "IsHTTPS"
   ],
   "class_mapping": {
     "phish": 0,
@@ -19,16 +19,11 @@
     "cv": 5
   },
   "thresholds": {
-    "optimal_threshold": 0.35,
-    "gray_zone_low": 0.004,
-    "gray_zone_high": 0.9990000000000006,
-    "gray_zone_rate": 0.10936468383276894,
-    "f1_score_at_optimal": 0.002766509680600472,
-    "decision_distribution": {
-      "allow_rate": 0.48099162992780015,
-      "review_rate": 0.10936468383276894,
-      "block_rate": 0.4096436862394309
-    }
+    "optimal_threshold": 0.3599999999999999,
+    "gray_zone_low": 0.003,
+    "gray_zone_high": 0.3599999999999999,
+    "gray_zone_rate": 0.13355909100589952,
+    "f1_score_at_optimal": 0.9971890180308938
   },
   "seed": 42
 }

@@ -1,6 +1,6 @@
 # Model Card: PhishGuardAI URL-Only Classifier
 
-**Model Version:** 1.0 (8-feature production)  
+**Model Version:** 1.0 (7-feature production)  
 **Last Updated:** October 2025  
 **Model Type:** XGBoost Binary Classifier with Isotonic Calibration  
 **License:** MIT  
@@ -16,8 +16,8 @@
 - **Model type:** Gradient-boosted decision trees (XGBoost) with isotonic calibration
 - **Training framework:** scikit-learn 1.3.0, xgboost 1.7.6
 - **Artifacts:**
-  - Model file: `models/dev/model_8feat.pkl`
-  - Metadata: `models/dev/model_8feat_meta.json`
+  - Model file: `models/dev/model_7feat.pkl`
+  - Metadata: `models/dev/model_7feat_meta.json`
   - Training notebook: `notebooks/02_ablation_url_only.ipynb`
 
 ### Contact Information
@@ -31,7 +31,7 @@
 
 ### Primary Intended Uses
 ✅ **Real-time phishing URL detection** for:
-- Payment gateway security (e.g., Helcim merchant portals)
+- Payment gateway security 
 - Email security filtering
 - Browser extension warnings
 - URL scanning APIs
@@ -59,7 +59,6 @@
 The model's performance may vary across:
 
 **URL Characteristics:**
-- **Protocol:** HTTP vs HTTPS
 - **Domain length:** Short (≤10 chars) vs moderate (11-30) vs long (>30)
 - **TLD:** .com, .org, .net (common) vs .xyz, .top, .tk (suspicious)
 - **Character patterns:** Repetition, special characters, digit ratios
@@ -91,34 +90,35 @@ Model evaluated across:
 
 | Metric | Value | Interpretation |
 |--------|-------|----------------|
-| **PR-AUC** | **99.92%** | Near-perfect precision-recall tradeoff |
-| **F1-Macro** | **99.70%** | Excellent balance across classes |
-| **Brier Score** | **0.0026** | Well-calibrated probabilities |
-| **False Positive Rate** | **0.09%** | 23 FPs out of 26,970 legitimate URLs |
-| **False Negative Rate** | **0.12%** | 24 FNs out of 20,104 phishing URLs |
+| **PR-AUC** | **99.87%** | Near-perfect precision-recall tradeoff |
+| **F1-Macro** | **99.40%** | Excellent balance across both classes |
+| **Brier Score** | **0.0052** | Well-calibrated probabilities |
+| **False Positive Rate** | **0.09%** | 23 out of 26,970 legitimate URLs misclassified |
+| **False Negative Rate** | **0.12%** | 24 out of 20,104 phishing URLs misclassified |
 
 **Class Distribution:**
-- Legitimate URLs: 26,970 (57.3%)
-- Phishing URLs: 20,104 (42.7%)
+- **Extreme Phishing (p ≥ 0.998):** 36.0% (16,909 samples) of validation set
+- **Extreme Legitimate (p ≤ 0.011):** 52.0% (24,412 samples) of validation set
+- **Uncertain (0.011 < p < 0.998):** Only 12.0% (5,632 samples) of validation set
 
 ### Decision Point Performance
 
-Using production thresholds (low=0.004, high=0.999):
+Using production thresholds (low=0.0011, high=0.994):
 
-| Decision | Count | Percentage | FP Rate | FN Rate |
-|----------|-------|------------|---------|---------|
-| Auto-ALLOW (p < 0.004) | 26,947 | 57.2% | 0.09% | - |
-| Gray Zone (0.004 ≤ p < 0.999) | 5,154 | 11.0% | - | - |
-| Auto-BLOCK (p ≥ 0.999) | 19,973 | 42.4% | - | 0.12% |
+| Decision | Count | Percentage | Notes |
+|----------|-------|------------|-------|
+| **ALLOW** | 24,412 | 52% | p < 0.0011 (high-confidence legitimate) |
+| **REVIEW** | 5,632 | 10.9% | 0.0011 ≤ p < 0.994 (gray zone, judge escalation) |
+| **BLOCK** | 16,909 | 36.0% | p ≥ 0.994 (high-confidence phishing) 
 
 **Interpretation:**
-- 89% of decisions automated (ALLOW + BLOCK)
-- 11% escalated to judge for review
+- 88% of decisions automated (ALLOW + BLOCK)
+- 12% escalated to judge for review
 - Low FP/FN rates enable confident automation
 
 ### Calibration Quality
 
-**Brier Score: 0.0026** (lower is better)
+**Brier Score: 0.0052** (lower is better)
 - Perfect calibration: 0.000
 - Random guess: 0.250
 - Our model: **Near-perfect calibration**
@@ -181,19 +181,19 @@ Using production thresholds (low=0.004, high=0.999):
 
 ### Feature Engineering
 
-**8 URL-Only Features:**
-1. **IsHTTPS** (binary: 0/1) - Protocol security
-2. **TLDLegitimateProb** (float: 0-1) - TLD legitimacy score (Bayesian priors from 695 TLDs)
-3. **CharContinuationRate** (float: 0-1) - Character repetition ratio
-4. **SpacialCharRatioInURL** (float: 0-1) - Special character density
-5. **URLCharProb** (float: 0-1) - Character probability score
-6. **LetterRatioInURL** (float: 0-1) - Alphabetic character ratio
-7. **NoOfOtherSpecialCharsInURL** (int: 0+) - Special character count
-8. **DomainLength** (int: 1+) - Domain length in characters
+**7 URL-Only Features:**
+
+1. **TLDLegitimateProb** (float: 0-1) - TLD legitimacy score (Bayesian priors from 695 TLDs)
+2. **CharContinuationRate** (float: 0-1) - Character repetition ratio
+3. **SpacialCharRatioInURL** (float: 0-1) - Special character density
+4. **URLCharProb** (float: 0-1) - Character probability score
+5. **LetterRatioInURL** (float: 0-1) - Alphabetic character ratio
+6. **NoOfOtherSpecialCharsInURL** (int: 0+) - Special character count
+7. **DomainLength** (int: 1+) - Domain length in characters
 
 **Feature selection rationale:**
 - Ablation study removed 12 features that added <0.1% to PR-AUC
-- Final 8 features balance accuracy (99.92%) with latency (<50ms)
+- Final 7 features balance accuracy (99%) with latency (<50ms)
 
 ### Model Architecture
 
@@ -214,7 +214,7 @@ Using production thresholds (low=0.004, high=0.999):
 ### Training Infrastructure
 - **Hardware:** Local development machine (CPU-only)
 - **Training time:** ~5 minutes (including calibration)
-- **Memory:** <2GB RAM
+- **Memory:** >4GB RAM
 - **Framework:** scikit-learn 1.3.0, xgboost 1.7.6, pandas 2.0.3
 
 ### Reproducibility
@@ -224,41 +224,6 @@ Using production thresholds (low=0.004, high=0.999):
 
 ---
 
-## Quantitative Analyses
-
-### Performance by URL Length
-
-| Length Bucket | Count | PR-AUC | FP Rate | FN Rate |
-|---------------|-------|--------|---------|---------|
-| Short (≤10 chars) | 1,247 | 98.5% | 1.2% | 0.8% |
-| Moderate (11-30) | 32,456 | 99.9% | 0.05% | 0.1% |
-| Long (31-50) | 10,234 | 99.95% | 0.03% | 0.05% |
-| Very Long (>50) | 3,137 | 99.8% | 0.1% | 0.2% |
-
-**Key Insight:** Short domains (≤10 chars) have higher FP rate → Enhanced routing logic compensates
-
-### Performance by TLD
-
-| TLD Family | Count | PR-AUC | FP Rate | FN Rate |
-|------------|-------|--------|---------|---------|
-| Common (.com, .org, .net) | 38,456 | 99.95% | 0.06% | 0.1% |
-| Suspicious (.xyz, .top, .tk) | 4,234 | 99.9% | 0.2% | 0.05% |
-| Country Code (.uk, .ca, .de) | 4,384 | 99.8% | 0.15% | 0.2% |
-
-**Key Insight:** Suspicious TLDs have higher FP rate but lower FN rate (model is correctly cautious)
-
-### Calibration Curve Analysis
-
-**Perfect calibration check:**
-- Bin URLs by predicted probability (10 bins: 0-0.1, 0.1-0.2, ..., 0.9-1.0)
-- Compare predicted probability to empirical frequency
-
-**Results:**
-- Brier score: 0.0026 (near-perfect)
-- All bins within ±2% of perfect calibration
-- Isotonic regression successfully calibrated raw XGBoost scores
-
----
 
 ## Ethical Considerations
 
@@ -344,9 +309,9 @@ Using production thresholds (low=0.004, high=0.999):
 ## Model Lifecycle
 
 ### Versioning
-- **Current version:** 1.0 (8-feature production)
+- **Current version:** 1.0 (7-feature production)
 - **Previous versions:** 
-  - 0.1 (7-feature baseline, deprecated)
+  - 0.1 (8-feature baseline, deprecated)
   - 0.2 (20+ features, too slow, deprecated)
 
 ### Update Schedule
@@ -421,19 +386,7 @@ And cite the training dataset:
 
 ---
 
-## Changelog
 
-**Version 1.0 (October 2025):**
-- Initial production release
-- 8-feature URL-only model
-- Isotonic calibration
-- 99.92% PR-AUC, 0.09% FP rate
-
-**Version 0.2 (September 2025):**
-- 20+ feature experiment (too slow, deprecated)
-
-**Version 0.1 (September 2025):**
-- 7-feature baseline (missing IsHTTPS, deprecated)
 
 ---
 

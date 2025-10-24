@@ -1,10 +1,10 @@
 """
-Build Great Expectations suite for PhishGuard 8-Feature Model.
+Build Great Expectations suite for PhishGuard 7-Feature Model.
 Creates comprehensive data validation expectations for the production-ready feature set.
 
 This script:
 1. Loads processed features (phiusiil_features_v2.csv)
-2. Creates GE expectations for all 8 required features
+2. Creates GE expectations for all 7 required features
 3. Validates data quality for ML pipeline
 
 Features validated match docs/FEATURE_EXTRACTION.md
@@ -16,14 +16,12 @@ import great_expectations as gx
 import pandas as pd
 from great_expectations.core.batch import RuntimeBatchRequest
 
-# Updated paths for 8-feature model
+# Updated paths for 7-feature model
 PROCESSED_CSV = Path("data/processed/phiusiil_features_v2.csv")
-SUITE_NAME = "phiusiil_8feature_production"
+SUITE_NAME = "phiusiil_7feature_production"
 
-# 8-Feature Model Definition (matches ge_check.py and FEATURE_EXTRACTION.md)
+# 7-Feature Model Definition (matches ge_check.py and FEATURE_EXTRACTION.md)
 REQUIRED_FEATURES = {
-    # Binary features
-    "IsHTTPS": ("binary", 0, 1),
     # Probability features [0, 1]
     "TLDLegitimateProb": ("float", 0.0, 1.0),
     "CharContinuationRate": ("float", 0.0, 1.0),
@@ -56,7 +54,7 @@ missing_features = [feat for feat in REQUIRED_FEATURES if feat not in df.columns
 if missing_features:
     raise ValueError(f"Missing required features: {missing_features}")
 
-print(f"✅ All 8 required features present: {list(REQUIRED_FEATURES.keys())}")
+print(f"✅ All 7 required features present: {list(REQUIRED_FEATURES.keys())}")
 
 # Initialize Great Expectations context (handle corrupted config)
 print("🔧 Setting up Great Expectations...")
@@ -195,7 +193,7 @@ validator = ctx.get_validator(
     batch_request=batch_request, expectation_suite_name=SUITE_NAME
 )
 
-print("🎯 Building expectations for 8-feature production model...")
+print("🎯 Building expectations for 7-feature production model...")
 
 
 def has_column(col: str) -> bool:
@@ -222,8 +220,8 @@ if has_column("URL"):
     validator.expect_column_values_to_be_unique("URL")
     print("    ✅ URL uniqueness validated")
 
-# === 8-FEATURE MODEL VALIDATION ===
-print("  🧠 8-Feature model validation...")
+# === 7-FEATURE MODEL VALIDATION ===
+print("  🧠 7-Feature model validation...")
 
 # 1. IsHTTPS - Binary feature (0=HTTP, 1=HTTPS)
 if has_column("IsHTTPS"):
@@ -339,13 +337,13 @@ if has_column("URL"):
 # === DEPRECATED FEATURE WARNINGS ===
 if deprecated_present:
     print(f"  ⚠️  Deprecated features detected: {deprecated_present}")
-    print("     These features are no longer used in the 8-feature model")
+    print("     These features are no longer used in the 7-feature model")
 
 # Save the expectation suite
 ctx.save_expectation_suite(validator.expectation_suite)
 expectations_count = len(validator.expectation_suite.expectations)
 
-print("\n🎉 PhishGuard 8-Feature Expectation Suite Complete!")
+print("\n🎉 PhishGuard 7-Feature Expectation Suite Complete!")
 print(f"📋 Suite: {SUITE_NAME}")
 print(f"🔍 Expectations: {expectations_count}")
 print(f"📊 Dataset: {df.shape[0]:,} rows validated")

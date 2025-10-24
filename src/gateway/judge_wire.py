@@ -74,10 +74,10 @@ def _subdomain_count(s: str) -> int:
     return max(0, host.count(".") - 1)
 
 
-def _extract_8features(url: str) -> Dict[str, Any]:
-    """Extract 8-feature model features for judge context."""
+def _extract_7features(url: str) -> Dict[str, Any]:
+    """Extract 7-feature model features for judge context."""
     try:
-        return extract_features(url, include_https=True)
+        return extract_features(url, include_https=False)
     except Exception:
         # Fallback to legacy features if extraction fails
         return {
@@ -156,23 +156,22 @@ def decide_with_judge(
     # Check if this is a short domain edge case that needs judge review
     is_short_domain_case = _should_route_to_judge_for_short_domain(url, p_malicious)
 
-    # Build the feature digest using 8-feature model
-    features_8 = _extract_8features(url)
+    # Build the feature digest using 7-feature model
+    features_7 = _extract_7features(url)
 
     digest = FeatureDigest(
-        # 8-feature model (required fields)
-        IsHTTPS=features_8.get("IsHTTPS", 0),
-        TLDLegitimateProb=features_8.get("TLDLegitimateProb", 0.5),  # neutral default
-        CharContinuationRate=features_8.get("CharContinuationRate", 0.0),
-        SpacialCharRatioInURL=features_8.get("SpacialCharRatioInURL", 0.0),
-        URLCharProb=features_8.get("URLCharProb", 0.5),  # neutral default
-        LetterRatioInURL=features_8.get("LetterRatioInURL", 0.5),  # neutral default
-        NoOfOtherSpecialCharsInURL=features_8.get("NoOfOtherSpecialCharsInURL", 0),
-        DomainLength=features_8.get("DomainLength", len(_extract_domain(url))),
+        # 7-feature model (required fields)
+        TLDLegitimateProb=features_7.get("TLDLegitimateProb", 0.5),  # neutral default
+        CharContinuationRate=features_7.get("CharContinuationRate", 0.0),
+        SpacialCharRatioInURL=features_7.get("SpacialCharRatioInURL", 0.0),
+        URLCharProb=features_7.get("URLCharProb", 0.5),  # neutral default
+        LetterRatioInURL=features_7.get("LetterRatioInURL", 0.5),  # neutral default
+        NoOfOtherSpecialCharsInURL=features_7.get("NoOfOtherSpecialCharsInURL", 0),
+        DomainLength=features_7.get("DomainLength", len(_extract_domain(url))),
         # Legacy features (optional for backward compatibility)
-        url_len=features_8.get("url_len", _url_len(url)),
-        url_digit_ratio=features_8.get("url_digit_ratio", _digit_ratio(url)),
-        url_subdomains=features_8.get("url_subdomains", _subdomain_count(url)),
+        url_len=features_7.get("url_len", _url_len(url)),
+        url_digit_ratio=features_7.get("url_digit_ratio", _digit_ratio(url)),
+        url_subdomains=features_7.get("url_subdomains", _subdomain_count(url)),
     )
 
     # Add routing context to judge request

@@ -10,14 +10,9 @@ def _risk_tokens(url: str) -> int:
 
 def judge_url(req: JudgeRequest) -> JudgeResponse:
     f = req.features
-    # Enhanced heuristics using 8-feature model:
+    # Enhanced heuristics using 7-feature model:
     risk = 0.0
     reasons = []
-
-    # HTTPS check (security baseline)
-    if f.IsHTTPS == 0:
-        risk += 0.15
-        reasons.append("HTTP (not HTTPS)")
 
     # TLD legitimacy (Bayesian prior)
     if f.TLDLegitimateProb < 0.10:
@@ -116,8 +111,7 @@ def judge_url(req: JudgeRequest) -> JudgeResponse:
         rationale=rationale,
         judge_score=risk,
         context={
-            # 8-feature model context
-            "IsHTTPS": f.IsHTTPS,
+            # 7-feature model context
             "TLDLegitimateProb": f.TLDLegitimateProb,
             "CharContinuationRate": f.CharContinuationRate,
             "SpacialCharRatioInURL": f.SpacialCharRatioInURL,
